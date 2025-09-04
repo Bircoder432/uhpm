@@ -1,8 +1,8 @@
 use crate::db::PackageDB;
-use crate::repo::{parse_repos, RepoDB, RepoError};
 use crate::fetcher;
-use tracing::{info, warn, error};
+use crate::repo::{RepoDB, RepoError, parse_repos};
 use semver::Version;
+use tracing::{error, info, warn};
 
 /// Ошибки обновления пакета
 #[derive(thiserror::Error, Debug)]
@@ -43,7 +43,10 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
     let mut latest_version: Option<Version> = None;
 
     for (repo_name, repo_path) in repos {
-        let repo_path = repo_path.strip_prefix("file://").unwrap_or(&repo_path).to_string();
+        let repo_path = repo_path
+            .strip_prefix("file://")
+            .unwrap_or(&repo_path)
+            .to_string();
         let repo_db_path = std::path::Path::new(&repo_path).join("packages.db");
 
         if !repo_db_path.exists() {
@@ -56,8 +59,8 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
 
         for (name, ver_str) in pkg_list {
             if name == pkg_name {
-                let ver = Version::parse(&ver_str).unwrap_or(Version::new(0,0,0));
-                let inst_ver = Version::parse(&installed_version).unwrap_or(Version::new(0,0,0));
+                let ver = Version::parse(&ver_str).unwrap_or(Version::new(0, 0, 0));
+                let inst_ver = Version::parse(&installed_version).unwrap_or(Version::new(0, 0, 0));
                 if ver > inst_ver {
                     latest_version = Some(ver);
                     latest_url = Some(repo_db.get_package(&name, &ver_str).await?);
@@ -67,7 +70,11 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
     }
 
     if let Some(url) = latest_url {
-        info!("Найдена новая версия пакета {}: {}", pkg_name, latest_version.unwrap());
+        info!(
+            "Найдена новая версия пакета {}: {}",
+            pkg_name,
+            latest_version.unwrap()
+        );
         // Скачиваем и устанавливаем новую версию
         let downloaded = fetcher::fetch_and_install_parallel(&[url], package_db).await?;
         info!("Пакет {} обновлён", pkg_name);

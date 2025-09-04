@@ -1,10 +1,9 @@
-
-use sqlx::{SqlitePool, Pool, Sqlite, Executor};
-use sqlx::Row;
-use semver::Version;
-use std::path::Path;
-use std::fs;
 use crate::package::Package;
+use semver::Version;
+use sqlx::Row;
+use sqlx::{Executor, Pool, Sqlite, SqlitePool};
+use std::fs;
+use std::path::Path;
 
 pub struct PackageDB {
     pool: SqlitePool,
@@ -56,20 +55,20 @@ impl PackageDB {
         .await?;
 
         sqlx::query(
-                r#"
+            r#"
                 CREATE TABLE IF NOT EXISTS installed_files (
                     package_name TEXT NOT NULL,
                     file_path TEXT NOT NULL,
                     PRIMARY KEY(package_name, file_path)
                 )
                 "#,
-            )
-            .execute(&self.pool)
-            .await?;
+        )
+        .execute(&self.pool)
+        .await?;
         // Тут можно добавить таблицу dependencies, если нужно
 
         sqlx::query(
-                r#"
+            r#"
                 CREATE TABLE IF NOT EXISTS dependencies (
                     package_name TEXT NOT NULL,
                     dependency_name TEXT NOT NULL,
@@ -77,9 +76,9 @@ impl PackageDB {
                     PRIMARY KEY(package_name, dependency_name)
                 )
                 "#,
-            )
-            .execute(&self.pool)
-            .await?;
+        )
+        .execute(&self.pool)
+        .await?;
 
         Ok(())
     }
@@ -100,7 +99,7 @@ impl PackageDB {
     pub async fn add_package_full(
         &self,
         pkg: &Package,
-        installed_files: &[String]
+        installed_files: &[String],
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT OR REPLACE INTO packages (name, version, author, src, checksum) VALUES (?, ?, ?, ?, ?)"
@@ -126,7 +125,7 @@ impl PackageDB {
 
         for file_path in installed_files {
             sqlx::query(
-                "INSERT OR REPLACE INTO installed_files (package_name, file_path) VALUES (?, ?)"
+                "INSERT OR REPLACE INTO installed_files (package_name, file_path) VALUES (?, ?)",
             )
             .bind(&pkg.name())
             .bind(file_path)
@@ -137,83 +136,74 @@ impl PackageDB {
         Ok(())
     }
     pub async fn get_installed_files(&self, pkg_name: &str) -> Result<Vec<String>, sqlx::Error> {
-            let rows = sqlx::query(
-                "SELECT file_path FROM installed_files WHERE package_name = ?"
-            )
+        let rows = sqlx::query("SELECT file_path FROM installed_files WHERE package_name = ?")
             .bind(pkg_name)
             .fetch_all(&self.pool)
             .await?;
 
-            let files = rows.into_iter()
-                .map(|row| row.get::<String, _>("file_path"))
-                .collect();
+        let files = rows
+            .into_iter()
+            .map(|row| row.get::<String, _>("file_path"))
+            .collect();
 
-            Ok(files)
-        }
-
-        pub async fn remove_package(&self, pkg_name: &str) -> Result<(), sqlx::Error> {
-            sqlx::query(
-                "DELETE FROM installed_files WHERE package_name = ?"
-            )
-            .bind(pkg_name)
-            .execute(&self.pool)
-            .await?;
-
-            sqlx::query(
-                "DELETE FROM dependencies WHERE package_name = ?"
-            )
-            .bind(pkg_name)
-            .execute(&self.pool)
-            .await?;
-
-            sqlx::query(
-                "DELETE FROM packages WHERE name = ?"
-            )
-            .bind(pkg_name)
-            .execute(&self.pool)
-            .await?;
-
-            Ok(())
-        }
-        pub async fn get_package_version(&self, pkg_name: &str) -> Result<Option<String>, sqlx::Error> {
-            let row = sqlx::query("SELECT version FROM packages WHERE name = ?")
-                .bind(pkg_name)
-                .fetch_optional(&self.pool)
-                .await?;
-            Ok(row.map(|r| r.get::<String, _>("version")))
-        }
-
-        pub async fn list_packages(&self) -> Result<Vec<(String, String)>, sqlx::Error> {
-                let rows = sqlx::query("SELECT name, version FROM packages")
-                    .fetch_all(&self.pool)
-                    .await?;
-
-                let mut packages = Vec::new();
-                for row in rows {
-                    let name: String = row.get("name");
-                    let version: String = row.get("version");
-                    packages.push((name, version));
-                }
-
-                Ok(packages)
-            }
-
-
-
-            pub async fn is_installed(&self, name: &str) -> Result<Option<Version>, sqlx::Error> {
-                let row = sqlx::query("SELECT version FROM packages WHERE name = ? ORDER BY version DESC LIMIT 1")
-                    .bind(name)
-                    .fetch_optional(&self.pool)
-                    .await?;
-
-                if let Some(r) = row {
-                    let ver_str: String = r.get("version");
-                    let ver = Version::parse(&ver_str).unwrap_or_else(|_| Version::new(0,0,0));
-                    Ok(Some(ver))
-                } else {
-                    Ok(None)
-                }
-            }
-
-
+        Ok(files)
     }
+
+    pub async fn remove_package(&self, pkg_name: &str) -> Result<(), sqlx::Error> {
+        sqlx::query("DELETE FROM installed_files WHERE package_name = ?")
+            .bind(pkg_name)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM dependencies WHERE package_name = ?")
+            .bind(pkg_name)
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("DELETE FROM packages WHERE name = ?")
+            .bind(pkg_name)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+    pub async fn get_package_version(&self, pkg_name: &str) -> Result<Option<String>, sqlx::Error> {
+        let row = sqlx::query("SELECT version FROM packages WHERE name = ?")
+            .bind(pkg_name)
+            .fetch_optional(&self.pool)
+            .await?;
+        Ok(row.map(|r| r.get::<String, _>("version")))
+    }
+
+    pub async fn list_packages(&self) -> Result<Vec<(String, String)>, sqlx::Error> {
+        let rows = sqlx::query("SELECT name, version FROM packages")
+            .fetch_all(&self.pool)
+            .await?;
+
+        let mut packages = Vec::new();
+        for row in rows {
+            let name: String = row.get("name");
+            let version: String = row.get("version");
+            packages.push((name, version));
+        }
+
+        Ok(packages)
+    }
+
+    pub async fn is_installed(&self, name: &str) -> Result<Option<Version>, sqlx::Error> {
+        let row = sqlx::query(
+            "SELECT version FROM packages WHERE name = ? ORDER BY version DESC LIMIT 1",
+        )
+        .bind(name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        if let Some(r) = row {
+            let ver_str: String = r.get("version");
+            let ver = Version::parse(&ver_str).unwrap_or_else(|_| Version::new(0, 0, 0));
+            Ok(Some(ver))
+        } else {
+            Ok(None)
+        }
+    }
+}

@@ -1,11 +1,11 @@
-use std::path::Path;
-use sqlx::{SqlitePool, Row};
-use thiserror::Error;
-use tracing::info;
-use std::fs;
-use std::collections::HashMap;
 use ron::from_str;
 use serde::Deserialize;
+use sqlx::{Row, SqlitePool};
+use std::collections::HashMap;
+use std::fs;
+use std::path::Path;
+use thiserror::Error;
+use tracing::info;
 
 #[derive(Error, Debug)]
 pub enum RepoError {
@@ -97,7 +97,14 @@ impl RepoDB {
         Ok(packages)
     }
 
-    pub async fn add_package(&self, name: &str, version: &str, author: &str, src: &str, checksum: &str) -> Result<(), sqlx::Error> {
+    pub async fn add_package(
+        &self,
+        name: &str,
+        version: &str,
+        author: &str,
+        src: &str,
+        checksum: &str,
+    ) -> Result<(), sqlx::Error> {
         sqlx::query(
             "INSERT OR IGNORE INTO packages (name, version, author, src, checksum) VALUES (?, ?, ?, ?, ?)"
         )
@@ -112,14 +119,12 @@ impl RepoDB {
     }
 
     pub async fn add_url(&self, name: &str, version: &str, url: &str) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "INSERT OR REPLACE INTO urls (name, version, url) VALUES (?, ?, ?)"
-        )
-        .bind(name)
-        .bind(version)
-        .bind(url)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT OR REPLACE INTO urls (name, version, url) VALUES (?, ?, ?)")
+            .bind(name)
+            .bind(version)
+            .bind(url)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 }

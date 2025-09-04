@@ -1,6 +1,6 @@
-use std::path::{Path, PathBuf};
-use tracing::{info, warn, error};
 use crate::db::PackageDB;
+use std::path::{Path, PathBuf};
+use tracing::{error, info, warn};
 
 #[derive(Debug)]
 pub enum DeleteError {
@@ -9,11 +9,15 @@ pub enum DeleteError {
 }
 
 impl From<std::io::Error> for DeleteError {
-    fn from(e: std::io::Error) -> Self { DeleteError::Io(e) }
+    fn from(e: std::io::Error) -> Self {
+        DeleteError::Io(e)
+    }
 }
 
 impl From<sqlx::Error> for DeleteError {
-    fn from(e: sqlx::Error) -> Self { DeleteError::Db(e) }
+    fn from(e: sqlx::Error) -> Self {
+        DeleteError::Db(e)
+    }
 }
 
 pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), DeleteError> {
@@ -36,7 +40,11 @@ pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), DeleteError> {
         std::fs::remove_dir_all(&pkg_dir)?;
         tracing::info!("Папка пакета удалена: {}", pkg_dir.display());
     } else {
-        tracing::warn!("Папка пакета '{}' не найдена: {}", pkg_name, pkg_dir.display());
+        tracing::warn!(
+            "Папка пакета '{}' не найдена: {}",
+            pkg_name,
+            pkg_dir.display()
+        );
     }
 
     // Удаляем файлы из installed_files
@@ -52,7 +60,6 @@ pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), DeleteError> {
             tracing::info!("Удалён: {}", path.display());
         }
     }
-
 
     db.remove_package(pkg_name).await?;
     tracing::info!("Запись пакета '{}' удалена из базы", pkg_name);

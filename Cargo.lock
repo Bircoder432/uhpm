@@ -2377,6 +2377,7 @@ dependencies = [
  "serde",
  "sqlx",
  "tar",
+ "tempfile",
  "thiserror",
  "tokio",
  "tracing",

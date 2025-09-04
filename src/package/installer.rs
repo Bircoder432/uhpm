@@ -1,10 +1,10 @@
+use crate::db::PackageDB;
+use crate::package::{Package, Source};
+use crate::symlist;
+use semver::Version;
 use std::fs;
 use std::path::{Path, PathBuf};
-use semver::Version;
 use tracing::info;
-use crate::package::{Package, Source};
-use crate::db::PackageDB;
-use crate::symlist;
 
 #[derive(Debug)]
 pub enum InstallError {
@@ -35,12 +35,21 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     let version: &Version = package_meta.version();
     if let Some(installed_version) = db.is_installed(pkg_name).await.unwrap() {
         if installed_version >= *version {
-            info!("Пакет {} версии {} уже установлен, пропускаем", pkg_name, installed_version);
+            info!(
+                "Пакет {} версии {} уже установлен, пропускаем",
+                pkg_name, installed_version
+            );
             return Ok(());
         }
     }
-    let package_root = dirs::home_dir().unwrap().join(".uhpm/packages")
-        .join(format!("{}-{}", package_meta.name(), package_meta.version()));
+    let package_root = dirs::home_dir()
+        .unwrap()
+        .join(".uhpm/packages")
+        .join(format!(
+            "{}-{}",
+            package_meta.name(),
+            package_meta.version()
+        ));
     if package_root.exists() {
         fs::remove_dir_all(&package_root)?;
     }
@@ -83,7 +92,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     //         }
     //     }
     // }
-    if let Ok(symlinks) = symlist::load_symlist(&package_root.join("symlist.ron")) {
+    if let Ok(symlinks) = symlist::load_symlist(&package_root.join("symlist.ron"), &package_root) {
         for (src_rel, dst_abs) in symlinks {
             let src_abs = package_root.join(src_rel);
 
@@ -96,9 +105,12 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
                 std::fs::remove_file(&dst_abs)?;
             }
 
-
             std::os::unix::fs::symlink(&src_abs, &dst_abs)?;
-            info!("Симлинк создан: {} -> {}", dst_abs.display(), src_abs.display());
+            info!(
+                "Симлинк создан: {} -> {}",
+                dst_abs.display(),
+                src_abs.display()
+            );
             installed_files.push(dst_abs);
         }
     }
@@ -108,7 +120,9 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
         .map(|p| p.to_string_lossy().to_string())
         .collect();
 
-    db.add_package_full(&package_meta, &installed_files_str).await.unwrap();
+    db.add_package_full(&package_meta, &installed_files_str)
+        .await
+        .unwrap();
 
     info!("Package {} installed successfully", package_meta.name());
     Ok(())
@@ -116,13 +130,19 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
 
 fn unpack(pkg_path: &Path) -> Result<PathBuf, std::io::Error> {
     if pkg_path.extension().and_then(|s| s.to_str()) != Some("uhp") {
-        return Err(std::io::Error::new(std::io::ErrorKind::InvalidInput, "Package must have .uhp extension"));
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Package must have .uhp extension",
+        ));
     }
 
     let tmp_dir = dirs::home_dir().unwrap().join(".uhpm/tmp");
     fs::create_dir_all(&tmp_dir)?;
 
-    let package_name = pkg_path.file_stem().and_then(|s| s.to_str()).unwrap_or("unknown_package");
+    let package_name = pkg_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown_package");
     let unpack_dir = tmp_dir.join(package_name);
 
     if unpack_dir.exists() {

@@ -1,14 +1,14 @@
-use std::path::{Path, PathBuf};
+use futures::stream::{FuturesUnordered, StreamExt};
+use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
+use std::path::{Path, PathBuf};
+use thiserror::Error;
 use tokio::fs;
 use tokio::task;
-use futures::stream::{FuturesUnordered, StreamExt};
-use tracing::{info, error};
-use thiserror::Error;
-use indicatif::{ProgressBar, ProgressStyle};
+use tracing::{error, info};
 
-use crate::installer;
 use crate::db::PackageDB;
+use crate::package::installer;
 
 #[derive(Error, Debug)]
 pub enum FetchError {
@@ -32,10 +32,12 @@ async fn download_package(url: &str) -> Result<PathBuf, FetchError> {
         let filename = Path::new(url)
             .file_name()
             .and_then(|f| f.to_str())
-            .ok_or_else(|| FetchError::Io(std::io::Error::new(
-                std::io::ErrorKind::InvalidData,
-                "Невозможно определить имя файла из URL"
-            )))?;
+            .ok_or_else(|| {
+                FetchError::Io(std::io::Error::new(
+                    std::io::ErrorKind::InvalidData,
+                    "Невозможно определить имя файла из URL",
+                ))
+            })?;
         let tmp_path = tmp_dir.join(filename);
         fs::write(&tmp_path, &resp).await?;
         Ok(tmp_path)
@@ -47,7 +49,8 @@ pub async fn fetch_packages(urls: &[String]) -> HashMap<String, PathBuf> {
     let bar = ProgressBar::new(urls.len() as u64);
     bar.set_style(
         ProgressStyle::default_bar()
-            .template("[{bar:40.cyan/blue}] {pos}/{len} {msg}").unwrap()
+            .template("[{bar:40.cyan/blue}] {pos}/{len} {msg}")
+            .unwrap()
             .progress_chars("##-"),
     );
 
@@ -81,19 +84,22 @@ pub async fn fetch_packages(urls: &[String]) -> HashMap<String, PathBuf> {
 /// Последовательная установка скачанных пакетов
 pub async fn install_fetched_packages(
     packages: &HashMap<String, PathBuf>,
-    package_db: &PackageDB
+    package_db: &PackageDB,
 ) -> Result<(), FetchError> {
     for (url, path) in packages {
         info!("Установка пакета с {}...", url);
-        installer::install(path, package_db)
-            .await
-            .map_err(|e| FetchError::Installer(format!("Ошибка установки пакета {}: {:?}", url, e)))?;
+        installer::install(path, package_db).await.map_err(|e| {
+            FetchError::Installer(format!("Ошибка установки пакета {}: {:?}", url, e))
+        })?;
     }
     Ok(())
 }
 
 /// Универсальная функция: параллельное скачивание + последовательная установка
-pub async fn fetch_and_install_parallel(urls: &[String], package_db: &PackageDB) -> Result<(), FetchError> {
+pub async fn fetch_and_install_parallel(
+    urls: &[String],
+    package_db: &PackageDB,
+) -> Result<(), FetchError> {
     let downloaded = fetch_packages(urls).await;
     install_fetched_packages(&downloaded, package_db).await?;
     Ok(())

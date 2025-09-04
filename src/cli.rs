@@ -1,12 +1,13 @@
 use clap::{Parser, Subcommand};
-use std::path::{PathBuf, Path};
-use tracing::{info, error, warn};
+use std::path::{Path, PathBuf};
+use tracing::{error, info, warn};
 
 use crate::db::PackageDB;
-use crate::installer;
-use crate::remover;
-use crate::repo::{RepoDB, parse_repos, RepoError};
 use crate::fetcher;
+use crate::package::installer;
+use crate::package::remover;
+use crate::package::updater;
+use crate::repo::{RepoDB, RepoError, parse_repos};
 
 /// Основная структура CLI
 #[derive(Parser)]
@@ -21,38 +22,40 @@ pub struct Cli {
 pub enum Commands {
     /// Установить пакет
     Install {
-            /// Установить пакет из файла (.uhp)
-            #[arg(short, long)]
-            file: Option<PathBuf>,
-            /// Установить пакеты из репозитория (по имени)
-            #[arg(value_name = "PACKAGE")]
-            package: Vec<String>,
-            /// Версия пакета (если не указана, берется последняя)
-            #[arg(short, long)]
-            version: Option<String>,
-        },
-
+        /// Установить пакет из файла (.uhp)
+        #[arg(short, long)]
+        file: Option<PathBuf>,
+        /// Установить пакеты из репозитория (по имени)
+        #[arg(value_name = "PACKAGE")]
+        package: Vec<String>,
+        /// Версия пакета (если не указана, берется последняя)
+        #[arg(short, long)]
+        version: Option<String>,
+    },
 
     /// Удалить пакет
     Remove {
         /// Имя пакета
         #[arg(value_name = "PACKAGE")]
-            packages: Vec<String>,
+        packages: Vec<String>,
     },
 
     List,
 
     Update {
-            /// Имя пакета для проверки обновлений
-            package: String,
-        },
-
+        /// Имя пакета для проверки обновлений
+        package: String,
+    },
 }
 
 impl Cli {
     pub async fn run(&self, db: &PackageDB) -> Result<(), Box<dyn std::error::Error>> {
         match &self.command {
-            Commands::Install { file, package, version } => {
+            Commands::Install {
+                file,
+                package,
+                version,
+            } => {
                 // Установка из файла (file)
                 if let Some(path) = file {
                     info!("Устанавливаю пакет из файла: {}", path.display());
@@ -68,11 +71,12 @@ impl Cli {
                     for pkg_name in package {
                         let mut urls_to_download = Vec::new();
                         for (repo_name, repo_path) in &repos {
-                            let repo_path = if let Some(stripped) = repo_path.strip_prefix("file://") {
-                                stripped.to_string()
-                            } else {
-                                repo_path.clone()
-                            };
+                            let repo_path =
+                                if let Some(stripped) = repo_path.strip_prefix("file://") {
+                                    stripped.to_string()
+                                } else {
+                                    repo_path.clone()
+                                };
 
                             let repo_db_path = Path::new(&repo_path).join("packages.db");
                             if !repo_db_path.exists() {
@@ -85,8 +89,12 @@ impl Cli {
 
                             for (name, pkg_version) in pkg_list {
                                 if name == *pkg_name {
-                                    if version.is_none() || version.as_ref().unwrap() == &pkg_version {
-                                        if let Ok(url) = repo_db.get_package(&name, &pkg_version).await {
+                                    if version.is_none()
+                                        || version.as_ref().unwrap() == &pkg_version
+                                    {
+                                        if let Ok(url) =
+                                            repo_db.get_package(&name, &pkg_version).await
+                                        {
                                             urls_to_download.push(url);
                                         }
                                     }
@@ -131,10 +139,10 @@ impl Cli {
                 }
             }
             Commands::Update { package } => {
-                let updater_result = crate::updater::update_package(package, db).await;
+                let updater_result = updater::update_package(package, db).await;
                 match updater_result {
                     Ok(_) => info!("Пакет '{}' обновлён или уже актуален", package),
-                    Err(crate::updater::UpdaterError::NotFound(_)) => {
+                    Err(updater::UpdaterError::NotFound(_)) => {
                         println!("Пакет '{}' не установлен", package);
                     }
                     Err(e) => {
