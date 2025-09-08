@@ -4,7 +4,6 @@ use crate::repo::{RepoDB, RepoError, parse_repos};
 use semver::Version;
 use tracing::{error, info, warn};
 
-/// Ошибки обновления пакета
 #[derive(thiserror::Error, Debug)]
 pub enum UpdaterError {
     #[error("Package not found: {0}")]
@@ -35,7 +34,6 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
     let installed_version = installed_version.unwrap();
     info!("Установленная версия {}: {}", pkg_name, installed_version);
 
-    // Парсим репозитории
     let repos_path = dirs::home_dir().unwrap().join(".uhpm/repos.ron");
     let repos = parse_repos(&repos_path)?;
 
@@ -75,7 +73,6 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
             pkg_name,
             latest_version.unwrap()
         );
-        // Скачиваем и устанавливаем новую версию
         let downloaded = fetcher::fetch_and_install_parallel(&[url], package_db).await?;
         info!("Пакет {} обновлён", pkg_name);
     } else {

@@ -59,39 +59,6 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
 
     let mut installed_files = Vec::new();
 
-    // let bin_dir = package_root.join("bin");
-    // if bin_dir.exists() {
-    //     for entry in fs::read_dir(&bin_dir)? {
-    //         let entry = entry?;
-    //         let file_path = entry.path();
-    //         if file_path.is_file() {
-    //             let link_path = dirs::home_dir().unwrap().join(".local/bin")
-    //                 .join(file_path.file_name().unwrap());
-    //             if link_path.exists() {
-    //                 fs::remove_file(&link_path)?;
-    //             }
-    //             unix_fs::symlink(&file_path, &link_path)?;
-    //             installed_files.push(link_path);
-    //         }
-    //     }
-    // }
-
-    // let share_dir = package_root.join("share/applications");
-    // if share_dir.exists() {
-    //     for entry in fs::read_dir(&share_dir)? {
-    //         let entry = entry?;
-    //         let file_path = entry.path();
-    //         if file_path.is_file() {
-    //             let link_path = dirs::home_dir().unwrap().join(".local/share/applications")
-    //                 .join(file_path.file_name().unwrap());
-    //             if link_path.exists() {
-    //                 fs::remove_file(&link_path)?;
-    //             }
-    //             unix_fs::symlink(&file_path, &link_path)?;
-    //             installed_files.push(link_path);
-    //         }
-    //     }
-    // }
     if let Ok(symlinks) = symlist::load_symlist(&package_root.join("symlist.ron"), &package_root) {
         for (src_rel, dst_abs) in symlinks {
             let src_abs = package_root.join(src_rel);

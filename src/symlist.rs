@@ -59,7 +59,7 @@ pub fn load_symlist(
     Ok(entries
         .into_iter()
         .map(|e| {
-            let src = package_root.join(e.source); // относительно корня пакета
+            let src = package_root.join(e.source);
             let dst = expand_vars(&e.target);
             (src, dst)
         })
@@ -93,11 +93,10 @@ mod tests {
 
     #[test]
     fn test_load_symlist_parsing() {
-        // Создаем временную папку
+
         let tmp_dir = tempdir().unwrap();
         let symlist_path = tmp_dir.path().join("symlist.ron");
 
-        // Пишем тестовый symlist
         let content = r#"
         [
             (source: "bin/foo", target: "$HOME/.local/bin/foo"),
@@ -109,14 +108,11 @@ mod tests {
         let package_root = tmp_dir.path();
         let symlinks = load_symlist(&symlist_path, package_root).unwrap();
 
-        // Проверяем количество записей
         assert_eq!(symlinks.len(), 2);
 
-        // Проверяем source
         assert_eq!(symlinks[0].0, package_root.join("bin/foo"));
         assert_eq!(symlinks[1].0, package_root.join("config/bar"));
 
-        // Проверяем target (только базовые проверки на окончание пути)
         let home = dirs::home_dir().unwrap();
         assert!(symlinks[0].1.to_string_lossy().ends_with(".local/bin/foo"));
         assert!(symlinks[1].1.to_string_lossy().ends_with("bar"));

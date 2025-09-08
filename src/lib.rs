@@ -2,9 +2,6 @@ pub mod db;
 pub mod fetcher;
 pub mod package;
 pub mod repo;
-// pub mod installer;
-// pub mod updater;
-// pub mod remover;
 pub mod cli;
 pub mod symlist;
 

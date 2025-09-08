@@ -47,7 +47,6 @@ pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), DeleteError> {
         );
     }
 
-    // Удаляем файлы из installed_files
     let files: Vec<String> = db.get_installed_files(pkg_name).await?;
     for f in files {
         let path = std::path::PathBuf::from(f);

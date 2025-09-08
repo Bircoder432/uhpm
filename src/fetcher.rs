@@ -44,7 +44,6 @@ async fn download_package(url: &str) -> Result<PathBuf, FetchError> {
     }
 }
 
-/// Параллельное скачивание списка URL, возвращает карту URL -> путь к файлу
 pub async fn fetch_packages(urls: &[String]) -> HashMap<String, PathBuf> {
     let bar = ProgressBar::new(urls.len() as u64);
     bar.set_style(
@@ -95,7 +94,7 @@ pub async fn install_fetched_packages(
     Ok(())
 }
 
-/// Универсальная функция: параллельное скачивание + последовательная установка
+
 pub async fn fetch_and_install_parallel(
     urls: &[String],
     package_db: &PackageDB,

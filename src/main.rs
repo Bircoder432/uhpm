@@ -1,3 +1,4 @@
+
 use std::path::Path;
 
 use clap::Parser;
@@ -9,6 +10,7 @@ use uhpm::db;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+
     tracing_subscriber::fmt::init();
     let mut db_path = dirs::home_dir().unwrap();
     db_path.push(".uhpm");

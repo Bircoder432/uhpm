@@ -10,34 +10,33 @@ pub struct PackageDB {
 }
 
 impl PackageDB {
-    /// Создаём новый объект PackageDB, автоматически создавая базу если её нет
+
     pub async fn new(path: &Path) -> Result<Self, sqlx::Error> {
-        // Проверяем существует ли база
+
         if !path.exists() {
-            // Создаём директорию, если её нет
+
             if let Some(parent) = path.parent() {
                 fs::create_dir_all(parent).expect("Failed to create directory for database");
             }
             std::fs::File::create(path).expect("Cannot create database file");
-            // SQLite создаст файл при подключении автоматически
+
         }
 
-        // Конвертируем Path в строку для sqlx
         let path_str = path.to_str().expect("Invalid UTF-8 path");
         let db_url = format!("sqlite://{}", path_str);
 
-        // Подключаемся к базе
+
         let pool = SqlitePool::connect(&db_url).await?;
 
         let db = PackageDB { pool };
 
-        // Инициализация таблиц (если их ещё нет)
+
         db.init_tables().await?;
 
         Ok(db)
     }
 
-    /// Инициализация таблиц
+
     async fn init_tables(&self) -> Result<(), sqlx::Error> {
         sqlx::query(
             r#"
@@ -65,7 +64,7 @@ impl PackageDB {
         )
         .execute(&self.pool)
         .await?;
-        // Тут можно добавить таблицу dependencies, если нужно
+
 
         sqlx::query(
             r#"
@@ -83,7 +82,7 @@ impl PackageDB {
         Ok(())
     }
 
-    // Примеры методов для работы с пакетами
+
     pub async fn add_package(&self, pkg: &Package) -> Result<(), sqlx::Error> {
         sqlx::query("INSERT OR REPLACE INTO packages (name, version, author, src, checksum) VALUES (?, ?, ?, ?, ?)")
             .bind(&pkg.name())
