@@ -42,7 +42,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Init { out_dir } => {
             let out_dir = out_dir.unwrap_or(std::env::current_dir()?);
 
-            // Используем UHPM::package::Package для шаблона
+
             let pkg = Package::template();
 
             let out_path = out_dir.join("uhp.ron");
@@ -57,20 +57,19 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Pack { package_dir, out_dir } => {
             let out_dir = out_dir.unwrap_or(std::env::current_dir()?);
 
-            // Проверяем наличие uhp.ron
+
             let meta_path = package_dir.join("uhp.ron");
             if !meta_path.exists() {
                 return Err(format!("Файл uhp.ron не найден в {}", package_dir.display()).into());
             }
 
-            // Парсим пакет
+
             let pkg: Package = meta_parser(&meta_path)?;
 
-            // Создаём имя архива
             let filename = format!("{}-{}.uhp", pkg.name(), pkg.version());
             let archive_path = out_dir.join(filename);
 
-            // Упаковываем пакет
+
             let tar_gz = File::create(&archive_path)?;
             let enc = GzEncoder::new(tar_gz, Compression::default());
             let mut tar = Builder::new(enc);

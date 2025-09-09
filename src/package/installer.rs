@@ -25,15 +25,15 @@ impl From<crate::package::MetaParseError> for InstallError {
     }
 }
 
-/// Основная установка пакета с подробной отладкой
+
 pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError> {
     info!("Начало установки пакета: {}", pkg_path.display());
 
-    // Распаковка
+
     let unpacked = unpack(pkg_path)?;
     debug!("Архив распакован в {:?}", unpacked);
 
-    // Чтение метаданных
+
     let meta_path = unpacked.join("uhp.ron");
     debug!("Чтение метаданных из {:?}", meta_path);
     let package_meta: Package = crate::package::meta_parser(&meta_path)?;
@@ -42,7 +42,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     let pkg_name = package_meta.name();
     let version = package_meta.version();
 
-    // Проверка установленной версии
+
     let already_installed = db.is_installed(pkg_name).await.unwrap();
     if let Some(installed_version) = &already_installed {
         info!(
@@ -55,7 +55,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
         }
     }
 
-    // Создание пути пакета
+
     let package_root = dirs::home_dir()
         .unwrap()
         .join(".uhpm/packages")
@@ -69,11 +69,11 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     fs::create_dir_all(&package_root)?;
     debug!("Папка пакета создана");
 
-    // Перемещаем распакованный пакет
+
     fs::rename(&unpacked, &package_root)?;
     debug!("Пакет перемещён в {:?}", package_root);
 
-    // Создание симлинков
+
     let mut installed_files = Vec::new();
     match already_installed {
         None => {
@@ -85,7 +85,6 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
         }
     }
 
-    // Добавление в базу
     let installed_files_str: Vec<String> = installed_files
         .iter()
         .map(|p| p.to_string_lossy().to_string())
@@ -104,7 +103,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     Ok(())
 }
 
-/// Создание симлинков с debug-логами
+
 pub fn create_symlinks(package_root: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut installed_files = Vec::new();
 
