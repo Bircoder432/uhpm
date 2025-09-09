@@ -24,6 +24,7 @@ impl From<crate::package::MetaParseError> for InstallError {
     }
 }
 
+/// Основная установка пакета
 pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError> {
     let unpacked = unpack(pkg_path)?;
     info!("Package unpacked to {:?}", unpacked);
@@ -31,25 +32,28 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     let meta_path = unpacked.join("uhp.ron");
     let package_meta: Package = crate::package::meta_parser(&meta_path)?;
     info!("Parsed package meta: {:?}", package_meta);
+
     let pkg_name: &str = package_meta.name();
     let version: &Version = package_meta.version();
-    if let Some(installed_version) = db.is_installed(pkg_name).await.unwrap() {
-        if installed_version >= *version {
+
+    // Проверка установленной версии (берём ссылку)
+    let already_installed = db.is_installed(pkg_name).await.unwrap();
+
+    if let Some(ref installed_version) = already_installed {
+        if installed_version == version {
             info!(
-                "Пакет {} версии {} уже установлен, пропускаем",
+                "Пакет {} версии {} уже установлен — установка отменена",
                 pkg_name, installed_version
             );
-            return Ok(());
+            return Ok(()); // установка не нужна
         }
     }
+
     let package_root = dirs::home_dir()
         .unwrap()
         .join(".uhpm/packages")
-        .join(format!(
-            "{}-{}",
-            package_meta.name(),
-            package_meta.version()
-        ));
+        .join(format!("{}-{}", package_meta.name(), package_meta.version()));
+
     if package_root.exists() {
         fs::remove_dir_all(&package_root)?;
     }
@@ -59,11 +63,41 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
 
     let mut installed_files = Vec::new();
 
+    match already_installed {
+        None => {
+            // Пакет ставится впервые → создаём симлинки
+            installed_files = create_symlinks(&package_root)?;
+        }
+        Some(_) => {
+            // Устанавливаем другую версию → без симлинков
+            info!(
+                "Пакет {} обновляется на версию {} — симлинки не создаются",
+                pkg_name, version
+            );
+        }
+    }
+
+    let installed_files_str: Vec<String> = installed_files
+        .iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
+
+    db.add_package_full(&package_meta, &installed_files_str)
+        .await
+        .unwrap();
+
+    info!("Package {} installed successfully", package_meta.name());
+    Ok(())
+}
+
+/// Вынесено создание симлинков
+pub fn create_symlinks(package_root: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+    let mut installed_files = Vec::new();
+
     if let Ok(symlinks) = symlist::load_symlist(&package_root.join("symlist.ron"), &package_root) {
         for (src_rel, dst_abs) in symlinks {
             let src_abs = package_root.join(src_rel);
 
-            // гарантируем, что директория назначения есть
             if let Some(parent) = dst_abs.parent() {
                 std::fs::create_dir_all(parent)?;
             }
@@ -82,19 +116,10 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
         }
     }
 
-    let installed_files_str: Vec<String> = installed_files
-        .iter()
-        .map(|p| p.to_string_lossy().to_string())
-        .collect();
-
-    db.add_package_full(&package_meta, &installed_files_str)
-        .await
-        .unwrap();
-
-    info!("Package {} installed successfully", package_meta.name());
-    Ok(())
+    Ok(installed_files)
 }
 
+/// Распаковка архива .uhp
 fn unpack(pkg_path: &Path) -> Result<PathBuf, std::io::Error> {
     if pkg_path.extension().and_then(|s| s.to_str()) != Some("uhp") {
         return Err(std::io::Error::new(

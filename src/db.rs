@@ -1,4 +1,4 @@
-use crate::package::Package;
+use crate::package::{Package,Source};
 use semver::Version;
 use sqlx::Row;
 use sqlx::{Executor, Pool, Sqlite, SqlitePool};
@@ -38,6 +38,7 @@ impl PackageDB {
 
 
     async fn init_tables(&self) -> Result<(), sqlx::Error> {
+        // Создаём таблицу packages c полем current
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS packages (
@@ -46,7 +47,22 @@ impl PackageDB {
                 version TEXT NOT NULL,
                 author TEXT NOT NULL,
                 src TEXT NOT NULL,
-                checksum TEXT NOT NULL
+                checksum TEXT NOT NULL,
+                current BOOLEAN NOT NULL DEFAULT 0
+            )
+            "#,
+        )
+        .execute(&self.pool)
+        .await?;
+
+
+
+        sqlx::query(
+            r#"
+            CREATE TABLE IF NOT EXISTS installed_files (
+                package_name TEXT NOT NULL,
+                file_path TEXT NOT NULL,
+                PRIMARY KEY(package_name, file_path)
             )
             "#,
         )
@@ -55,26 +71,13 @@ impl PackageDB {
 
         sqlx::query(
             r#"
-                CREATE TABLE IF NOT EXISTS installed_files (
-                    package_name TEXT NOT NULL,
-                    file_path TEXT NOT NULL,
-                    PRIMARY KEY(package_name, file_path)
-                )
-                "#,
-        )
-        .execute(&self.pool)
-        .await?;
-
-
-        sqlx::query(
-            r#"
-                CREATE TABLE IF NOT EXISTS dependencies (
-                    package_name TEXT NOT NULL,
-                    dependency_name TEXT NOT NULL,
-                    dependency_version TEXT NOT NULL,
-                    PRIMARY KEY(package_name, dependency_name)
-                )
-                "#,
+            CREATE TABLE IF NOT EXISTS dependencies (
+                package_name TEXT NOT NULL,
+                dependency_name TEXT NOT NULL,
+                dependency_version TEXT NOT NULL,
+                PRIMARY KEY(package_name, dependency_name)
+            )
+            "#,
         )
         .execute(&self.pool)
         .await?;
@@ -84,7 +87,7 @@ impl PackageDB {
 
 
     pub async fn add_package(&self, pkg: &Package) -> Result<(), sqlx::Error> {
-        sqlx::query("INSERT OR REPLACE INTO packages (name, version, author, src, checksum) VALUES (?, ?, ?, ?, ?)")
+        sqlx::query("INSERT OR REPLACE INTO packages (name, version, author, src, checksum, current) VALUES (?, ?, ?, ?, ?, 0)")
             .bind(&pkg.name())
             .bind(&pkg.version().to_string())
             .bind(&pkg.author())
@@ -101,7 +104,7 @@ impl PackageDB {
         installed_files: &[String],
     ) -> Result<(), sqlx::Error> {
         sqlx::query(
-            "INSERT OR REPLACE INTO packages (name, version, author, src, checksum) VALUES (?, ?, ?, ?, ?)"
+            "INSERT OR REPLACE INTO packages (name, version, author, src, checksum, current) VALUES (?, ?, ?, ?, ?, 0)"
         )
         .bind(&pkg.name())
         .bind(&pkg.version().to_string())
@@ -167,15 +170,15 @@ impl PackageDB {
         Ok(())
     }
     pub async fn get_package_version(&self, pkg_name: &str) -> Result<Option<String>, sqlx::Error> {
-        let row = sqlx::query("SELECT version FROM packages WHERE name = ?")
+        let row = sqlx::query("SELECT version FROM packages WHERE name = ? AND current = 1")
             .bind(pkg_name)
             .fetch_optional(&self.pool)
             .await?;
         Ok(row.map(|r| r.get::<String, _>("version")))
     }
 
-    pub async fn list_packages(&self) -> Result<Vec<(String, String)>, sqlx::Error> {
-        let rows = sqlx::query("SELECT name, version FROM packages")
+    pub async fn list_packages(&self) -> Result<Vec<(String, String, bool)>, sqlx::Error> {
+        let rows = sqlx::query("SELECT name, version, current FROM packages")
             .fetch_all(&self.pool)
             .await?;
 
@@ -183,7 +186,8 @@ impl PackageDB {
         for row in rows {
             let name: String = row.get("name");
             let version: String = row.get("version");
-            packages.push((name, version));
+            let current: bool = row.get("current");
+            packages.push((name, version, current));
         }
 
         Ok(packages)
@@ -205,4 +209,122 @@ impl PackageDB {
             Ok(None)
         }
     }
+    pub async fn get_current_package(&self, pkg_name: &str) -> Result<Option<Package>, sqlx::Error> {
+        // Получаем основной пакет
+        let row = sqlx::query(
+            "SELECT name, version, author, src, checksum FROM packages WHERE name = ? LIMIT 1"
+        )
+        .bind(pkg_name)
+        .fetch_optional(&self.pool)
+        .await?;
+
+        let row = match row {
+            Some(r) => r,
+            None => return Ok(None),
+        };
+
+        // Читаем зависимости пакета
+        let dep_rows = sqlx::query(
+            "SELECT dependency_name, dependency_version FROM dependencies WHERE package_name = ?"
+        )
+        .bind(pkg_name)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let mut dependencies = Vec::new();
+        for dep in dep_rows {
+            let dep_name: String = dep.get("dependency_name");
+            let dep_version_str: String = dep.get("dependency_version");
+            if let Ok(dep_version) = Version::parse(&dep_version_str) {
+                dependencies.push((dep_name, dep_version));
+            }
+        }
+
+        // Создаём объект Package через конструктор
+        let package = Package::new(
+            row.get::<String, _>("name"),
+            Version::parse(&row.get::<String, _>("version")).unwrap_or_else(|_| Version::new(0, 0, 0)),
+            row.get::<String, _>("author"),
+            Source::Raw(row.get::<String, _>("src")),
+            row.get::<String, _>("checksum"),
+            dependencies,
+        );
+
+        Ok(Some(package))
+    }
+
+
+    pub async fn set_current_version(
+        &self,
+        pkg_name: &str,
+        version: &str,
+    ) -> Result<(), sqlx::Error> {
+        // Сбрасываем current у всех версий этого пакета
+        sqlx::query("UPDATE packages SET current = 0 WHERE name = ?")
+            .bind(pkg_name)
+            .execute(&self.pool)
+            .await?;
+
+        // Ставим current=1 у выбранной версии
+        sqlx::query("UPDATE packages SET current = 1 WHERE name = ? AND version = ?")
+            .bind(pkg_name)
+            .bind(version)
+            .execute(&self.pool)
+            .await?;
+
+        Ok(())
+    }
+
+    pub async fn get_package_by_version(
+            &self,
+            pkg_name: &str,
+            pkg_version: &str,
+        ) -> Result<Option<Package>, sqlx::Error> {
+            // Получаем основной пакет по имени и версии
+            let row = sqlx::query(
+                "SELECT name, version, author, src, checksum
+                 FROM packages
+                 WHERE name = ? AND version = ? LIMIT 1"
+            )
+            .bind(pkg_name)
+            .bind(pkg_version)
+            .fetch_optional(&self.pool)
+            .await?;
+
+            let row = match row {
+                Some(r) => r,
+                None => return Ok(None),
+            };
+
+            // Читаем зависимости пакета
+            let dep_rows = sqlx::query(
+                "SELECT dependency_name, dependency_version
+                 FROM dependencies
+                 WHERE package_name = ?"
+            )
+            .bind(pkg_name)
+            .fetch_all(&self.pool)
+            .await?;
+
+            let mut dependencies = Vec::new();
+            for dep in dep_rows {
+                let dep_name: String = dep.get("dependency_name");
+                let dep_version_str: String = dep.get("dependency_version");
+                if let Ok(dep_version) = Version::parse(&dep_version_str) {
+                    dependencies.push((dep_name, dep_version));
+                }
+            }
+
+            // Создаём объект Package через конструктор
+            let package = Package::new(
+                row.get::<String, _>("name"),
+                Version::parse(&row.get::<String, _>("version")).unwrap_or_else(|_| Version::new(0, 0, 0)),
+                row.get::<String, _>("author"),
+                Source::Raw(row.get::<String, _>("src")),
+                row.get::<String, _>("checksum"),
+                dependencies,
+            );
+
+            Ok(Some(package))
+        }
 }

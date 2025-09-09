@@ -2,14 +2,20 @@
 name = "uhpm"
 version = "0.1.0"
 edition = "2024"
+default-run = "uhpm"
 
 [lib]
 name = "uhpm"
 crate-type = ["cdylib", "rlib"]
 
 [[bin]]
+name = "uhpmk"
+path = "src/bin/uhpmk.rs"
+
+[[bin]]
 name = "uhpm"
 path = "src/main.rs"
+
 
 [dependencies]
 clap = { version = "4.5.46", features = ["derive"] }

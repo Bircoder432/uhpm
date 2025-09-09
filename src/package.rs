@@ -9,6 +9,7 @@ use thiserror::Error;
 pub mod installer;
 pub mod remover;
 pub mod updater;
+pub mod switcher;
 
 #[derive(Error, Debug)]
 pub enum MetaParseError {
@@ -18,6 +19,8 @@ pub enum MetaParseError {
     #[error("RON parse error: {0}")]
     Ron(#[from] SpannedError),
 }
+
+
 
 #[derive(Serialize, Deserialize, Debug)]
 pub enum Source {
@@ -46,6 +49,23 @@ pub struct Package {
 }
 
 impl Package {
+    pub fn new(
+            name: impl Into<String>,
+            version: Version,
+            author: impl Into<String>,
+            src: Source,
+            checksum: impl Into<String>,
+            dependencies: Vec<(String, Version)>,
+        ) -> Self {
+            Self {
+                name: name.into(),
+                version,
+                author: author.into(),
+                src,
+                checksum: checksum.into(),
+                dependencies,
+            }
+        }
     pub fn name(&self) -> &str {
         &self.name
     }
@@ -94,6 +114,11 @@ pub fn meta_parser(meta_path: &Path) -> Result<Package, MetaParseError> {
     let pkg: Package = ron::from_str(&data)?;
 
     Ok(pkg)
+}
+
+pub fn get_pkg_path(pkg_name: &str, pkg_ver: Version) -> PathBuf {
+    let packages_path: PathBuf = dirs::home_dir().unwrap().join(".uhpm").join("packages");
+    return packages_path.join(format!("{}-{}",pkg_name, pkg_ver.to_string()));
 }
 
 #[cfg(test)]

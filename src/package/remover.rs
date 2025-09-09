@@ -31,7 +31,6 @@ pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), DeleteError> {
 
     tracing::info!("Попытка удалить пакет: {}-{}", pkg_name, version);
 
-    // Формируем путь к папке пакета с версией
     let mut pkg_dir = dirs::home_dir().unwrap();
     pkg_dir.push(".uhpm/packages");
     pkg_dir.push(format!("{}-{}", pkg_name, version));

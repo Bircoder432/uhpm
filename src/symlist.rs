@@ -49,6 +49,22 @@ fn expand_vars(path: &str) -> PathBuf {
     PathBuf::from(expanded)
 }
 
+pub fn save_template(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
+    let symlist_template = r#"[
+    (
+        source: "bin/my_binary",          // путь внутри пакета
+        target: "$HOME/.local/bin/my_binary", // путь назначения
+    ),
+    (
+        source: "share/applications/my_app.desktop",
+        target: "$XDG_DATA_HOME/applications/my_app.desktop",
+    ),
+]
+"#;
+    fs::write(path, symlist_template)?;
+    Ok(())
+}
+
 pub fn load_symlist(
     path: &Path,
     package_root: &Path,
