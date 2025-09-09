@@ -2,6 +2,7 @@ use crate::db::PackageDB;
 use crate::package::{Package, Source};
 use crate::symlist;
 use semver::Version;
+use tracing::instrument::WithSubscriber;
 use std::fs;
 use std::path::{Path, PathBuf};
 use tracing::{info, debug, warn, error};
@@ -97,7 +98,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     db.add_package_full(&package_meta, &installed_files_str)
         .await
         .unwrap();
-    db.set_current_version(&package_meta.name(), &package_meta.version().to_string());
+    db.set_current_version(&package_meta.name(), &package_meta.version().to_string()).await.unwrap();
 
     info!("Установка пакета {} завершена успешно", pkg_name);
     Ok(())

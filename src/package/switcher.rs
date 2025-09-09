@@ -1,4 +1,4 @@
-// src/package/switcher.rs
+
 use crate::db::PackageDB;
 use crate::package::Package;
 use crate::package::installer::create_symlinks;
@@ -32,18 +32,11 @@ impl From<crate::symlist::SymlistError> for SwitchError {
     }
 }
 
-/// Переключить "активную" (используемую) версию пакета:
-/// 1. Удаляет симлинки, созданные текущей (текущей в БД) версией (по её symlist.ron),
-///    при этом удаляет только те пути, которые
-///    - существуют,
-///    - являются симлинками,
-///    - и указывают на файлы внутри папки этой версии (по symlist).
-/// 2. Создаёт симлинки для переданной (целевой) версии через installer::create_symlinks.
-/// 3. Обновляет записи installed_files в БД (удаляет старые и добавляет новые).
+
 pub async fn switch_version(pkg_name: &str,target_version: Version, db: &PackageDB) -> Result<(), SwitchError> {
 
     let pkg: Package = db.get_package_by_version(pkg_name, &target_version.to_string()).await.unwrap().unwrap();
-    // 1) Узнаём текущую (зарегистрированную в БД) версию
+
     let current_package: Package = db.get_current_package(&pkg_name).await.unwrap().unwrap();
     let current_version_opt: &str = &current_package.version().to_string();
 
@@ -58,17 +51,16 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
             match crate::symlist::load_symlist(&symlist_path, &current_pkg_dir) {
                 Ok(symlinks) => {
                     for (src_abs, dst_abs) in symlinks {
-                        // Удаляем только если dst_abs существует, это симлинк и указывает на src_abs
+
                         if dst_abs.exists() {
                             match std::fs::symlink_metadata(&dst_abs) {
                                 Ok(meta) => {
                                     if meta.file_type().is_symlink() {
                                         match std::fs::read_link(&dst_abs) {
                                             Ok(link_target) => {
-                                                // Сравниваем с ожидаемым абсолютным путём из symlist.
-                                                // Если совпадает — безопасно удалять.
+
                                                 if link_target == src_abs {
-                                                    // Удаляем симлинк (не папку пакета)
+
                                                     if let Err(e) = std::fs::remove_file(&dst_abs) {
                                                         warn!(
                                                             "Не удалось удалить симлинк {}: {}",
@@ -103,11 +95,11 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
                     }
                 }
                 Err(crate::symlist::SymlistError::Io(ref io_err)) if io_err.kind() == ErrorKind::NotFound => {
-                    // Если symlist.ron не найден — просто ничего не удаляем (ничего не было создано раньше)
+
                     info!("symlist.ron для текущей версии не найден, пропуск удаления симлинков");
                 }
                 Err(e) => {
-                    // Для других ошибок парсинга/чтения — возвращаем ошибку
+
                     return Err(SwitchError::Symlist(e));
                 }
             }
@@ -121,7 +113,7 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
         info!("Текущая версия пакета не записана в базе — пропускаем удаление симлинков");
     }
 
-    // 2) Создаём симлинки для целевой версии
+
     let new_pkg_dir = dirs::home_dir()
         .unwrap()
         .join(".uhpm/packages")
@@ -131,12 +123,11 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
         return Err(SwitchError::MissingPackageDir(new_pkg_dir));
     }
 
-    // create_symlinks возвращает Result<Vec<PathBuf>, std::io::Error>
+
     let new_installed_files = create_symlinks(&new_pkg_dir)?;
 
-    // 3) Обновляем базу: удаляем старые записи и записываем новые installed_files
-    // Примечание: db.remove_package удаляет записи installed_files/dependencies/packages, но не удаляет папки пакетов.
-    db.set_current_version(pkg_name, &target_version.to_string()).await?;
+
+    db.set_current_version(pkg_name, &target_version.to_string()).await.unwrap();
 
     info!(
         "Пакет '{}' переключён на версию {} (симлинки обновлены).",
