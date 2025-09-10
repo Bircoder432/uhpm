@@ -127,8 +127,6 @@ mod tests {
 
         assert_eq!(symlinks[0].0, package_root.join("bin/foo"));
         assert_eq!(symlinks[1].0, package_root.join("config/bar"));
-
-        let home = dirs::home_dir().unwrap();
         assert!(symlinks[0].1.to_string_lossy().ends_with(".local/bin/foo"));
         assert!(symlinks[1].1.to_string_lossy().ends_with("bar"));
     }

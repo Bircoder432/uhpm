@@ -1,16 +1,13 @@
 use crate::db::PackageDB;
 use crate::fetcher;
-use crate::package::Package;
 use crate::package::installer;
 use crate::package::remover;
 use crate::package::switcher;
 use crate::package::updater;
-use crate::repo::{RepoDB, RepoError, parse_repos};
+use crate::repo::{RepoDB, parse_repos};
 use crate::self_remove;
 use clap::{Parser, Subcommand};
-use semver::Version;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 use tracing::{error, info, warn};
 
 
@@ -144,13 +141,8 @@ impl Cli {
                     println!("Установленных пакетов нет");
                 } else {
                     println!("Установленные пакеты:");
-                    let mut chr: char = ' ';
                     for (name, version, current) in packages {
-                        if current {
-                            chr = '*';
-                        } else {
-                            chr = ' '
-                        }
+                        let chr = if current { '*' } else { ' ' };
                         println!(" - {} {} {}", name, version, chr);
                     }
                 }
@@ -199,7 +191,7 @@ impl Cli {
                 }
             }
             Commands::SelfRemove => {
-                self_remove::self_remove();
+                self_remove::self_remove()?;
             }
         }
 

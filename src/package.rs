@@ -108,7 +108,7 @@ impl Package {
 pub fn meta_parser(meta_path: &Path) -> Result<Package, MetaParseError> {
     let data = fs::read_to_string(meta_path)?;
 
-    // Парсим RON в Package
+
     let pkg: Package = ron::from_str(&data)?;
 
     Ok(pkg)
@@ -124,7 +124,6 @@ mod tests {
     use super::*;
     use semver::Version;
     use std::fs;
-    use std::path::PathBuf;
 
     fn sample_package_ron() -> String {
         r#"

@@ -73,7 +73,7 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
             pkg_name,
             latest_version.unwrap()
         );
-        let downloaded = fetcher::fetch_and_install_parallel(&[url], package_db).await?;
+        fetcher::fetch_and_install_parallel(&[url], package_db).await?;
         info!("Пакет {} обновлён", pkg_name);
     } else {
         info!("Пакет {} актуален, обновлений нет", pkg_name);

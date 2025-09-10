@@ -1,10 +1,10 @@
 use crate::package::{Package, Source};
 use semver::Version;
 use sqlx::Row;
-use sqlx::{Executor, Pool, Sqlite, SqlitePool};
+use sqlx::SqlitePool;
 use std::fs;
 use std::path::{Path, PathBuf};
-use tracing::{debug, error, info, warn};
+use tracing::{debug, info};
 
 pub struct PackageDB {
     pool: SqlitePool,
@@ -91,52 +91,6 @@ impl PackageDB {
             &self.pool
         }
 
-    async fn init_tables(&self) -> Result<(), sqlx::Error> {
-        debug!("Создание таблиц, если не существуют");
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS packages (
-                id INTEGER PRIMARY KEY,
-                name TEXT NOT NULL,
-                version TEXT NOT NULL,
-                author TEXT NOT NULL,
-                src TEXT NOT NULL,
-                checksum TEXT NOT NULL,
-                current BOOLEAN NOT NULL DEFAULT 0
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS installed_files (
-                package_name TEXT NOT NULL,
-                file_path TEXT NOT NULL,
-                PRIMARY KEY(package_name, file_path)
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
-
-        sqlx::query(
-            r#"
-            CREATE TABLE IF NOT EXISTS dependencies (
-                package_name TEXT NOT NULL,
-                dependency_name TEXT NOT NULL,
-                dependency_version TEXT NOT NULL,
-                PRIMARY KEY(package_name, dependency_name)
-            )
-            "#,
-        )
-        .execute(&self.pool)
-        .await?;
-
-        debug!("Таблицы созданы / проверены");
-        Ok(())
-    }
 
     pub async fn add_package(&self, pkg: &Package) -> Result<(), sqlx::Error> {
         debug!("Добавляем пакет {} версии {}", pkg.name(), pkg.version());

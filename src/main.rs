@@ -1,8 +1,8 @@
-use std::path::Path;
+
 
 use clap::Parser;
 use db::PackageDB;
-use tracing::{error, info, warn};
+use tracing::info;
 use tracing_subscriber;
 use uhpm::cli::Cli;
 use uhpm::db;

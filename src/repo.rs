@@ -1,11 +1,10 @@
 use ron::from_str;
-use serde::Deserialize;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
 use thiserror::Error;
-use tracing::info;
+
 
 #[derive(Error, Debug)]
 pub enum RepoError {

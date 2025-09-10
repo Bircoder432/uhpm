@@ -4,7 +4,6 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::fs;
-use tokio::task;
 use tracing::{error, info};
 
 use crate::db::PackageDB;
@@ -22,7 +21,7 @@ pub enum FetchError {
     Installer(String),
 }
 
-/// Скачивание одного пакета (локального или удалённого)
+
 async fn download_package(url: &str) -> Result<PathBuf, FetchError> {
     if let Some(stripped) = url.strip_prefix("file://") {
         Ok(PathBuf::from(stripped))
@@ -80,7 +79,7 @@ pub async fn fetch_packages(urls: &[String]) -> HashMap<String, PathBuf> {
     results
 }
 
-/// Последовательная установка скачанных пакетов
+
 pub async fn install_fetched_packages(
     packages: &HashMap<String, PathBuf>,
     package_db: &PackageDB,
