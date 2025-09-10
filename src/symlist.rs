@@ -109,7 +109,6 @@ mod tests {
 
     #[test]
     fn test_load_symlist_parsing() {
-
         let tmp_dir = tempdir().unwrap();
         let symlist_path = tmp_dir.path().join("symlist.ron");
 

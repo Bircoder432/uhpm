@@ -1,11 +1,10 @@
-
 use crate::db::PackageDB;
 use crate::package::Package;
 use crate::package::installer::create_symlinks;
 use crate::symlist;
-use std::path::PathBuf;
-use std::io::ErrorKind;
 use semver::Version;
+use std::io::ErrorKind;
+use std::path::PathBuf;
 use tracing::{info, instrument::WithSubscriber, warn};
 
 #[derive(Debug)]
@@ -32,10 +31,16 @@ impl From<crate::symlist::SymlistError> for SwitchError {
     }
 }
 
-
-pub async fn switch_version(pkg_name: &str,target_version: Version, db: &PackageDB) -> Result<(), SwitchError> {
-
-    let pkg: Package = db.get_package_by_version(pkg_name, &target_version.to_string()).await.unwrap().unwrap();
+pub async fn switch_version(
+    pkg_name: &str,
+    target_version: Version,
+    db: &PackageDB,
+) -> Result<(), SwitchError> {
+    let pkg: Package = db
+        .get_package_by_version(pkg_name, &target_version.to_string())
+        .await
+        .unwrap()
+        .unwrap();
 
     let current_package: Package = db.get_current_package(&pkg_name).await.unwrap().unwrap();
     let current_version_opt: &str = &current_package.version().to_string();
@@ -51,16 +56,13 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
             match crate::symlist::load_symlist(&symlist_path, &current_pkg_dir) {
                 Ok(symlinks) => {
                     for (src_abs, dst_abs) in symlinks {
-
                         if dst_abs.exists() {
                             match std::fs::symlink_metadata(&dst_abs) {
                                 Ok(meta) => {
                                     if meta.file_type().is_symlink() {
                                         match std::fs::read_link(&dst_abs) {
                                             Ok(link_target) => {
-
                                                 if link_target == src_abs {
-
                                                     if let Err(e) = std::fs::remove_file(&dst_abs) {
                                                         warn!(
                                                             "Не удалось удалить симлинк {}: {}",
@@ -68,7 +70,10 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
                                                             e
                                                         );
                                                     } else {
-                                                        info!("Удалён старый симлинк: {}", dst_abs.display());
+                                                        info!(
+                                                            "Удалён старый симлинк: {}",
+                                                            dst_abs.display()
+                                                        );
                                                     }
                                                 } else {
                                                     info!(
@@ -80,7 +85,11 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
                                                 }
                                             }
                                             Err(e) => {
-                                                warn!("Не удалось прочитать цель симлинка {}: {}", dst_abs.display(), e);
+                                                warn!(
+                                                    "Не удалось прочитать цель симлинка {}: {}",
+                                                    dst_abs.display(),
+                                                    e
+                                                );
                                             }
                                         }
                                     } else {
@@ -88,18 +97,22 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
                                     }
                                 }
                                 Err(e) => {
-                                    warn!("Не удалось получить метаданные {}: {}", dst_abs.display(), e);
+                                    warn!(
+                                        "Не удалось получить метаданные {}: {}",
+                                        dst_abs.display(),
+                                        e
+                                    );
                                 }
                             }
                         }
                     }
                 }
-                Err(crate::symlist::SymlistError::Io(ref io_err)) if io_err.kind() == ErrorKind::NotFound => {
-
+                Err(crate::symlist::SymlistError::Io(ref io_err))
+                    if io_err.kind() == ErrorKind::NotFound =>
+                {
                     info!("symlist.ron для текущей версии не найден, пропуск удаления симлинков");
                 }
                 Err(e) => {
-
                     return Err(SwitchError::Symlist(e));
                 }
             }
@@ -113,7 +126,6 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
         info!("Текущая версия пакета не записана в базе — пропускаем удаление симлинков");
     }
 
-
     let new_pkg_dir = dirs::home_dir()
         .unwrap()
         .join(".uhpm/packages")
@@ -123,11 +135,11 @@ pub async fn switch_version(pkg_name: &str,target_version: Version, db: &Package
         return Err(SwitchError::MissingPackageDir(new_pkg_dir));
     }
 
+    create_symlinks(&new_pkg_dir)?;
 
-    let new_installed_files = create_symlinks(&new_pkg_dir)?;
-
-
-    db.set_current_version(pkg_name, &target_version.to_string()).await.unwrap();
+    db.set_current_version(pkg_name, &target_version.to_string())
+        .await
+        .unwrap();
 
     info!(
         "Пакет '{}' переключён на версию {} (симлинки обновлены).",

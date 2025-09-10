@@ -1,19 +1,19 @@
+use crate::db::PackageDB;
+use crate::fetcher;
+use crate::package::Package;
+use crate::package::installer;
+use crate::package::remover;
+use crate::package::switcher;
+use crate::package::updater;
+use crate::repo::{RepoDB, RepoError, parse_repos};
+use crate::self_remove;
 use clap::{Parser, Subcommand};
+use semver::Version;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
 use tracing::{error, info, warn};
-use crate::package::switcher;
-use semver::Version;
-use crate::package::Package;
-use crate::db::PackageDB;
-use crate::self_remove;
-use crate::fetcher;
-use crate::package::installer;
-use crate::package::remover;
-use crate::package::updater;
-use crate::repo::{RepoDB, RepoError, parse_repos};
 
-/// Основная структура CLI
+
 #[derive(Parser)]
 #[command(name = "uhpm", version, about = "Universal Home Package Manager")]
 pub struct Cli {
@@ -21,25 +21,25 @@ pub struct Cli {
     pub command: Commands,
 }
 
-/// Подкоманды
+
 #[derive(Subcommand)]
 pub enum Commands {
-    /// Установить пакет
+
     Install {
-        /// Установить пакет из файла (.uhp)
+
         #[arg(short, long)]
         file: Option<PathBuf>,
-        /// Установить пакеты из репозитория (по имени)
+
         #[arg(value_name = "PACKAGE")]
         package: Vec<String>,
-        /// Версия пакета (если не указана, берется последняя)
+
         #[arg(short, long)]
         version: Option<String>,
     },
 
-    /// Удалить пакет
+
     Remove {
-        /// Имя пакета
+
         #[arg(value_name = "PACKAGE")]
         packages: Vec<String>,
     },
@@ -48,15 +48,15 @@ pub enum Commands {
     SelfRemove,
 
     Update {
-        /// Имя пакета для проверки обновлений
+
         package: String,
     },
 
     Switch {
-            /// Формат: имя@версия (например, foo@1.1.1)
-            #[arg(value_name = "PACKAGE@VERSION")]
-            target: String,
-        }, // NEW
+
+        #[arg(value_name = "PACKAGE@VERSION")]
+        target: String,
+    },
 }
 
 impl Cli {
@@ -67,14 +67,14 @@ impl Cli {
                 package,
                 version,
             } => {
-                // Установка из файла (file)
+
                 if let Some(path) = file {
                     info!("Устанавливаю пакет из файла: {}", path.display());
                     installer::install(path, db).await.unwrap();
                     return Ok(());
                 }
 
-                // Установка из репозитория
+
                 if !package.is_empty() {
                     let repos_path = dirs::home_dir().unwrap().join(".uhpm/repos.ron");
                     let repos = parse_repos(&repos_path)?;
@@ -148,11 +148,10 @@ impl Cli {
                     for (name, version, current) in packages {
                         if current {
                             chr = '*';
-                        }
-                        else {
+                        } else {
                             chr = ' '
                         }
-                        println!(" - {} {} {}", name, version,chr);
+                        println!(" - {} {} {}", name, version, chr);
                     }
                 }
             }
@@ -169,40 +168,39 @@ impl Cli {
                 }
             }
             Commands::Switch { target } => {
-                            // Разбираем строку вида "foo@1.1.1"
-                            let parts: Vec<&str> = target.split('@').collect();
-                            if parts.len() != 2 {
-                                error!("Неверный формат '{}'. Используй: имя@версия", target);
-                                return Ok(());
-                            }
 
-                            let pkg_name = parts[0];
-                            let pkg_version = parts[1];
+                let parts: Vec<&str> = target.split('@').collect();
+                if parts.len() != 2 {
+                    error!("Неверный формат '{}'. Используй: имя@версия", target);
+                    return Ok(());
+                }
 
-                            // Парсим версию в semver::Version
-                            match semver::Version::parse(pkg_version) {
-                                Ok(ver) => {
-                                     // предполагается, что у Package есть конструктор new(name, version)
-                                    info!(
-                                        "Переключаю пакет '{}' на версию {}...",
-                                        pkg_name, pkg_version
-                                    );
-                                    match switcher::switch_version(pkg_name,ver, db).await {
-                                        Ok(_) => info!(
-                                            "Пакет '{}' успешно переключён на {}",
-                                            pkg_name, pkg_version
-                                        ),
-                                        Err(e) => error!("Ошибка при переключении: {:?}", e),
-                                    }
-                                }
-                                Err(e) => {
-                                    error!("Неверный формат версии '{}': {}", pkg_version, e);
-                                }
+                let pkg_name = parts[0];
+                let pkg_version = parts[1];
+
+
+                match semver::Version::parse(pkg_version) {
+                    Ok(ver) => {
+
+                        info!(
+                            "Переключаю пакет '{}' на версию {}...",
+                            pkg_name, pkg_version
+                        );
+                        match switcher::switch_version(pkg_name, ver, db).await {
+                            Ok(_) => {
+                                info!("Пакет '{}' успешно переключён на {}", pkg_name, pkg_version)
                             }
+                            Err(e) => error!("Ошибка при переключении: {:?}", e),
                         }
-                        Commands::SelfRemove => {
-                            self_remove::self_remove();
-                        }
+                    }
+                    Err(e) => {
+                        error!("Неверный формат версии '{}': {}", pkg_version, e);
+                    }
+                }
+            }
+            Commands::SelfRemove => {
+                self_remove::self_remove();
+            }
         }
 
         Ok(())

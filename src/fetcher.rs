@@ -94,7 +94,6 @@ pub async fn install_fetched_packages(
     Ok(())
 }
 
-
 pub async fn fetch_and_install_parallel(
     urls: &[String],
     package_db: &PackageDB,

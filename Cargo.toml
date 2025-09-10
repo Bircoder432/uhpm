@@ -12,9 +12,6 @@ crate-type = ["cdylib", "rlib"]
 name = "uhpmk"
 path = "src/bin/uhpmk.rs"
 
-[[bin]]
-name = "uhpm"
-path = "src/main.rs"
 
 
 [dependencies]

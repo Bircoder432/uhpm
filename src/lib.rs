@@ -1,10 +1,10 @@
+pub mod cli;
 pub mod db;
 pub mod fetcher;
 pub mod package;
 pub mod repo;
-pub mod cli;
-pub mod symlist;
 pub mod self_remove;
+pub mod symlist;
 
 use std::fs;
 pub fn clear_tmp() -> std::io::Result<()> {

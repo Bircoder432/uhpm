@@ -3,36 +3,93 @@ use semver::Version;
 use sqlx::Row;
 use sqlx::{Executor, Pool, Sqlite, SqlitePool};
 use std::fs;
-use std::path::Path;
-use tracing::{info, debug, warn, error};
+use std::path::{Path, PathBuf};
+use tracing::{debug, error, info, warn};
 
 pub struct PackageDB {
     pool: SqlitePool,
+    path: PathBuf,
 }
 
 impl PackageDB {
-    pub async fn new(path: &Path) -> Result<Self, sqlx::Error> {
-        debug!("Инициализация базы данных: {:?}", path);
+    /// Creates a new `PackageDB` instance and ensures that the database file exists.
+        /// Does not establish a connection yet.
+        pub fn new(path: &Path) -> Result<Self, std::io::Error> {
+            debug!("Creating PackageDB at {:?}", path);
 
-        if !path.exists() {
-            if let Some(parent) = path.parent() {
-                fs::create_dir_all(parent).expect("Failed to create directory for database");
+            if !path.exists() {
+                if let Some(parent) = path.parent() {
+                    fs::create_dir_all(parent)?;
+                }
+                std::fs::File::create(path)?;
+                debug!("New database file created at {:?}", path);
             }
-            std::fs::File::create(path).expect("Cannot create database file");
-            debug!("Создан новый файл базы данных: {:?}", path);
+
+            // placeholder pool, will be overwritten in `init`
+            Ok(PackageDB {
+                pool: SqlitePool::connect_lazy("sqlite::memory:")
+                    .expect("lazy pool must work for placeholder"),
+                path: path.to_path_buf(),
+            })
         }
 
-        let path_str = path.to_str().expect("Invalid UTF-8 path");
-        let db_url = format!("sqlite://{}", path_str);
-        debug!("Подключение к базе: {}", db_url);
+        /// Establishes a real database connection and initializes tables if needed.
+        pub async fn init(mut self) -> Result<Self, sqlx::Error> {
+            let path_str = self.path.to_str().expect("Invalid UTF-8 path");
+            let db_url = format!("sqlite://{}", path_str);
+            debug!("Connecting to database: {}", db_url);
 
-        let pool = SqlitePool::connect(&db_url).await?;
-        let db = PackageDB { pool };
-        db.init_tables().await?;
-        info!("База данных инициализирована");
+            self.pool = SqlitePool::connect(&db_url).await?;
 
-        Ok(db)
-    }
+            debug!("Ensuring required tables exist");
+            sqlx::query(
+                r#"
+                CREATE TABLE IF NOT EXISTS packages (
+                    id INTEGER PRIMARY KEY,
+                    name TEXT NOT NULL,
+                    version TEXT NOT NULL,
+                    author TEXT NOT NULL,
+                    src TEXT NOT NULL,
+                    checksum TEXT NOT NULL,
+                    current BOOLEAN NOT NULL DEFAULT 0
+                )
+                "#,
+            )
+            .execute(&self.pool)
+            .await?;
+
+            sqlx::query(
+                r#"
+                CREATE TABLE IF NOT EXISTS installed_files (
+                    package_name TEXT NOT NULL,
+                    file_path TEXT NOT NULL,
+                    PRIMARY KEY(package_name, file_path)
+                )
+                "#,
+            )
+            .execute(&self.pool)
+            .await?;
+
+            sqlx::query(
+                r#"
+                CREATE TABLE IF NOT EXISTS dependencies (
+                    package_name TEXT NOT NULL,
+                    dependency_name TEXT NOT NULL,
+                    dependency_version TEXT NOT NULL,
+                    PRIMARY KEY(package_name, dependency_name)
+                )
+                "#,
+            )
+            .execute(&self.pool)
+            .await?;
+
+            info!("Database initialized at {:?}", self.path);
+            Ok(self)
+        }
+
+        pub fn pool(&self) -> &SqlitePool {
+            &self.pool
+        }
 
     async fn init_tables(&self) -> Result<(), sqlx::Error> {
         debug!("Создание таблиц, если не существуют");
@@ -102,7 +159,12 @@ impl PackageDB {
         pkg: &Package,
         installed_files: &[String],
     ) -> Result<(), sqlx::Error> {
-        info!("Добавляем пакет {} версии {} с {} файлами", pkg.name(), pkg.version(), installed_files.len());
+        info!(
+            "Добавляем пакет {} версии {} с {} файлами",
+            pkg.name(),
+            pkg.version(),
+            installed_files.len()
+        );
 
         self.add_package(pkg).await?;
 
@@ -140,7 +202,10 @@ impl PackageDB {
             .fetch_all(&self.pool)
             .await?;
 
-        let files: Vec<String> = rows.into_iter().map(|row| row.get::<String, _>("file_path")).collect();
+        let files: Vec<String> = rows
+            .into_iter()
+            .map(|row| row.get::<String, _>("file_path"))
+            .collect();
         debug!("Найдено {} файлов для пакета {}", files.len(), pkg_name);
         Ok(files)
     }
@@ -212,10 +277,13 @@ impl PackageDB {
         }
     }
 
-    pub async fn get_current_package(&self, pkg_name: &str) -> Result<Option<Package>, sqlx::Error> {
+    pub async fn get_current_package(
+        &self,
+        pkg_name: &str,
+    ) -> Result<Option<Package>, sqlx::Error> {
         debug!("Получаем текущий пакет {}", pkg_name);
         let row = sqlx::query(
-            "SELECT name, version, author, src, checksum FROM packages WHERE name = ? LIMIT 1"
+            "SELECT name, version, author, src, checksum FROM packages WHERE name = ? LIMIT 1",
         )
         .bind(pkg_name)
         .fetch_optional(&self.pool)
@@ -226,11 +294,11 @@ impl PackageDB {
             None => {
                 debug!("Пакет {} не найден", pkg_name);
                 return Ok(None);
-            },
+            }
         };
 
         let dep_rows = sqlx::query(
-            "SELECT dependency_name, dependency_version FROM dependencies WHERE package_name = ?"
+            "SELECT dependency_name, dependency_version FROM dependencies WHERE package_name = ?",
         )
         .bind(pkg_name)
         .fetch_all(&self.pool)
@@ -247,7 +315,8 @@ impl PackageDB {
 
         let package = Package::new(
             row.get::<String, _>("name"),
-            Version::parse(&row.get::<String, _>("version")).unwrap_or_else(|_| Version::new(0, 0, 0)),
+            Version::parse(&row.get::<String, _>("version"))
+                .unwrap_or_else(|_| Version::new(0, 0, 0)),
             row.get::<String, _>("author"),
             Source::Raw(row.get::<String, _>("src")),
             row.get::<String, _>("checksum"),
@@ -263,7 +332,10 @@ impl PackageDB {
         pkg_name: &str,
         version: &str,
     ) -> Result<(), sqlx::Error> {
-        info!("Устанавливаем current версию {} для пакета {}", version, pkg_name);
+        info!(
+            "Устанавливаем current версию {} для пакета {}",
+            version, pkg_name
+        );
         sqlx::query("UPDATE packages SET current = 0 WHERE name = ?")
             .bind(pkg_name)
             .execute(&self.pool)
@@ -275,7 +347,10 @@ impl PackageDB {
             .execute(&self.pool)
             .await?;
 
-        info!("Версия {} установлена как current для пакета {}", version, pkg_name);
+        info!(
+            "Версия {} установлена как current для пакета {}",
+            version, pkg_name
+        );
         Ok(())
     }
 
@@ -288,7 +363,7 @@ impl PackageDB {
         let row = sqlx::query(
             "SELECT name, version, author, src, checksum
              FROM packages
-             WHERE name = ? AND version = ? LIMIT 1"
+             WHERE name = ? AND version = ? LIMIT 1",
         )
         .bind(pkg_name)
         .bind(pkg_version)
@@ -300,13 +375,13 @@ impl PackageDB {
             None => {
                 debug!("Пакет {} версии {} не найден", pkg_name, pkg_version);
                 return Ok(None);
-            },
+            }
         };
 
         let dep_rows = sqlx::query(
             "SELECT dependency_name, dependency_version
              FROM dependencies
-             WHERE package_name = ?"
+             WHERE package_name = ?",
         )
         .bind(pkg_name)
         .fetch_all(&self.pool)
@@ -323,7 +398,8 @@ impl PackageDB {
 
         let package = Package::new(
             row.get::<String, _>("name"),
-            Version::parse(&row.get::<String, _>("version")).unwrap_or_else(|_| Version::new(0, 0, 0)),
+            Version::parse(&row.get::<String, _>("version"))
+                .unwrap_or_else(|_| Version::new(0, 0, 0)),
             row.get::<String, _>("author"),
             Source::Raw(row.get::<String, _>("src")),
             row.get::<String, _>("checksum"),

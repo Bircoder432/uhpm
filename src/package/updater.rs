@@ -22,9 +22,9 @@ pub enum UpdaterError {
     Fetch(#[from] crate::fetcher::FetchError),
 }
 
-/// Проверяет и обновляет пакет
+
 pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<(), UpdaterError> {
-    // Проверяем, установлен ли пакет
+
     let installed_version = package_db.get_package_version(pkg_name).await?;
     if installed_version.is_none() {
         warn!("Пакет {} не установлен", pkg_name);

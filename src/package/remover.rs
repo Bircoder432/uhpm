@@ -1,6 +1,4 @@
 use crate::db::PackageDB;
-use std::path::{Path, PathBuf};
-use tracing::{error, info, warn};
 
 #[derive(Debug)]
 pub enum DeleteError {
@@ -21,7 +19,7 @@ impl From<sqlx::Error> for DeleteError {
 }
 
 pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), DeleteError> {
-    // Получаем версию пакета из базы
+
     let version = db.get_package_version(pkg_name).await?;
     if version.is_none() {
         tracing::warn!("Пакет '{}' не найден в базе", pkg_name);
