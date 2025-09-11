@@ -1,4 +1,4 @@
-# Unified Home Package Manager (UHPM)
+# Universal Home Package Manager (UHPM)
 ## Usage
 ```shell
 uhpm install package
