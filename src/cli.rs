@@ -26,9 +26,12 @@ use crate::package::switcher;
 use crate::package::updater;
 use crate::repo::{RepoDB, parse_repos};
 use crate::self_remove;
+use clap::CommandFactory;
 use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use tracing::{error, info, warn};
+use clap_complete::{generate,shells::{Fish,Zsh,Bash}};
+use std::io;
 
 /// Main CLI parser for UHPM.
 ///
@@ -90,6 +93,12 @@ pub enum Commands {
         #[arg(value_name = "PACKAGE@VERSION")]
         target: String,
     },
+
+    /// Generate shell completion scripts
+    Completions {
+        /// Target shell (e.g. fish,bash,zsh)
+        shell: String,
+    }
 }
 
 impl Cli {
@@ -235,6 +244,17 @@ impl Cli {
 
             Commands::SelfRemove => {
                 self_remove::self_remove()?;
+            },
+            Commands::Completions { shell } => {
+                match shell.to_lowercase().as_str() {
+                    "bash" => generate(Bash, &mut Cli::command(), "uhpm", &mut io::stdout()),
+                    "zsh" => generate(Zsh, &mut Cli::command(), "uhpm", &mut io::stdout()),
+                    "fish" => generate(Fish, &mut Cli::command(), "uhpm", &mut io::stdout()),
+                    other => {
+                        println!("Unsupported shell: {}", other);
+                    }
+                }
+                return Ok(());
             }
         }
 
