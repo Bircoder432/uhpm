@@ -1,3 +1,23 @@
+//! # Command-Line Interface (CLI)
+//!
+//! This module defines the CLI for **UHPM (Universal Home Package Manager)**.
+//! It provides user-facing commands for managing packages, including
+//! installation, removal, listing, updates, switching versions, and
+//! self-removal of the package manager itself.
+//!
+//! ## Responsibilities
+//! - Parse CLI arguments using [`clap`].
+//! - Provide subcommands for common package operations.
+//! - Delegate logic to corresponding modules (`installer`, `remover`, `updater`, `switcher`, etc.).
+//!
+//! ## Commands
+//! - **Install**: Install a package from a file or repository.
+//! - **Remove**: Uninstall one or more packages.
+//! - **List**: Show all installed packages, with the current version marked.
+//! - **Update**: Update a package to the latest available version.
+//! - **Switch**: Switch to a specific installed version of a package.
+//! - **SelfRemove**: Uninstall UHPM itself.
+
 use crate::db::PackageDB;
 use crate::fetcher;
 use crate::package::installer;
@@ -10,53 +30,76 @@ use clap::{Parser, Subcommand};
 use std::path::{Path, PathBuf};
 use tracing::{error, info, warn};
 
-
+/// Main CLI parser for UHPM.
+///
+/// Defines the CLI interface with global options and subcommands.
+/// Built on top of [`clap::Parser`].
 #[derive(Parser)]
 #[command(name = "uhpm", version, about = "Universal Home Package Manager")]
 pub struct Cli {
+    /// The subcommand to run.
     #[command(subcommand)]
     pub command: Commands,
 }
 
-
+/// Available UHPM subcommands.
 #[derive(Subcommand)]
 pub enum Commands {
-
+    /// Install a package from file or repository.
     Install {
-
+        /// Install a package from a `.uhp` file.
         #[arg(short, long)]
         file: Option<PathBuf>,
 
+        /// Install packages from repositories by name.
         #[arg(value_name = "PACKAGE")]
         package: Vec<String>,
 
+        /// Specify a version (if omitted, installs the latest).
         #[arg(short, long)]
         version: Option<String>,
     },
 
-
+    /// Remove installed packages.
     Remove {
-
+        /// Names of packages to remove.
         #[arg(value_name = "PACKAGE")]
         packages: Vec<String>,
     },
 
+    /// List installed packages.
+    ///
+    /// Displays all installed packages and their versions.
+    /// The currently active version is marked with `*`.
     List,
+
+    /// Remove UHPM itself.
     SelfRemove,
 
+    /// Update a package to the latest available version.
     Update {
-
+        /// Name of the package to update.
         package: String,
     },
 
+    /// Switch active version of a package.
+    ///
+    /// Format: `name@version`
     Switch {
-
+        /// Target package and version, e.g. `foo@1.2.3`.
         #[arg(value_name = "PACKAGE@VERSION")]
         target: String,
     },
 }
 
 impl Cli {
+    /// Run the CLI, executing the chosen subcommand.
+    ///
+    /// # Arguments
+    /// - `db`: Reference to the package database.
+    ///
+    /// # Errors
+    /// Returns a boxed error if any operation fails.
     pub async fn run(&self, db: &PackageDB) -> Result<(), Box<dyn std::error::Error>> {
         match &self.command {
             Commands::Install {
@@ -64,14 +107,14 @@ impl Cli {
                 package,
                 version,
             } => {
-
+                // Install from file
                 if let Some(path) = file {
-                    info!("Устанавливаю пакет из файла: {}", path.display());
+                    info!("Installing package from file: {}", path.display());
                     installer::install(path, db).await.unwrap();
                     return Ok(());
                 }
 
-
+                // Install from repository
                 if !package.is_empty() {
                     let repos_path = dirs::home_dir().unwrap().join(".uhpm/repos.ron");
                     let repos = parse_repos(&repos_path)?;
@@ -88,7 +131,7 @@ impl Cli {
 
                             let repo_db_path = Path::new(&repo_path).join("packages.db");
                             if !repo_db_path.exists() {
-                                warn!("База репозитория {} не найдена, пропускаю", repo_name);
+                                warn!("Repository database {} not found, skipping", repo_name);
                                 continue;
                             }
 
@@ -111,25 +154,25 @@ impl Cli {
                         }
 
                         if urls_to_download.is_empty() {
-                            error!("Пакет {} не найден ни в одном репозитории", pkg_name);
+                            error!("Package {} not found in any repository", pkg_name);
                         } else {
-                            info!("Скачиваю и устанавливаю пакет {}...", pkg_name);
+                            info!("Downloading and installing package {}...", pkg_name);
                             fetcher::fetch_and_install_parallel(&urls_to_download, db).await?;
                         }
                     }
                 } else {
-                    error!("Не указан ни файл, ни имя пакета для установки");
+                    error!("Neither file nor package name specified for installation");
                 }
             }
 
             Commands::Remove { packages } => {
                 if packages.is_empty() {
-                    error!("Не указаны пакеты для удаления");
+                    error!("No packages specified for removal");
                 } else {
                     for pkg_name in packages {
-                        info!("Удаляю пакет: {}", pkg_name);
+                        info!("Removing package: {}", pkg_name);
                         if let Err(e) = remover::remove(pkg_name, db).await {
-                            error!("Ошибка при удалении {}: {:?}", pkg_name, e);
+                            error!("Failed to remove {}: {:?}", pkg_name, e);
                         }
                     }
                 }
@@ -138,58 +181,58 @@ impl Cli {
             Commands::List => {
                 let packages = db.list_packages().await?;
                 if packages.is_empty() {
-                    println!("Установленных пакетов нет");
+                    println!("No installed packages");
                 } else {
-                    println!("Установленные пакеты:");
+                    println!("Installed packages:");
                     for (name, version, current) in packages {
                         let chr = if current { '*' } else { ' ' };
                         println!(" - {} {} {}", name, version, chr);
                     }
                 }
             }
+
             Commands::Update { package } => {
                 let updater_result = updater::update_package(package, db).await;
                 match updater_result {
-                    Ok(_) => info!("Пакет '{}' обновлён или уже актуален", package),
+                    Ok(_) => info!("Package '{}' updated or already up to date", package),
                     Err(updater::UpdaterError::NotFound(_)) => {
-                        println!("Пакет '{}' не установлен", package);
+                        println!("Package '{}' is not installed", package);
                     }
                     Err(e) => {
-                        error!("Ошибка при обновлении пакета '{}': {:?}", package, e);
+                        error!("Error updating package '{}': {:?}", package, e);
                     }
                 }
             }
-            Commands::Switch { target } => {
 
+            Commands::Switch { target } => {
                 let parts: Vec<&str> = target.split('@').collect();
                 if parts.len() != 2 {
-                    error!("Неверный формат '{}'. Используй: имя@версия", target);
+                    error!("Invalid format '{}'. Use: name@version", target);
                     return Ok(());
                 }
 
                 let pkg_name = parts[0];
                 let pkg_version = parts[1];
 
-
                 match semver::Version::parse(pkg_version) {
                     Ok(ver) => {
-
                         info!(
-                            "Переключаю пакет '{}' на версию {}...",
+                            "Switching package '{}' to version {}...",
                             pkg_name, pkg_version
                         );
                         match switcher::switch_version(pkg_name, ver, db).await {
                             Ok(_) => {
-                                info!("Пакет '{}' успешно переключён на {}", pkg_name, pkg_version)
+                                info!("Package '{}' successfully switched to {}", pkg_name, pkg_version)
                             }
-                            Err(e) => error!("Ошибка при переключении: {:?}", e),
+                            Err(e) => error!("Error switching version: {:?}", e),
                         }
                     }
                     Err(e) => {
-                        error!("Неверный формат версии '{}': {}", pkg_version, e);
+                        error!("Invalid version format '{}': {}", pkg_version, e);
                     }
                 }
             }
+
             Commands::SelfRemove => {
                 self_remove::self_remove()?;
             }

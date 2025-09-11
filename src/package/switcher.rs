@@ -1,15 +1,36 @@
+//! # Package Version Switcher
+//!
+//! This module provides functionality to switch between different installed
+//! versions of a package. It updates symbolic links to point to the files
+//! of the desired version and updates the database record for the "current"
+//! version.
+//!
+//! ## Responsibilities
+//! - Remove symlinks of the currently active version.
+//! - Validate existence of the target version directory.
+//! - Create symlinks for the target version.
+//! - Update the package database with the new current version.
+//!
+//! Errors are unified under [`SwitchError`] for consistency.
+
 use crate::db::PackageDB;
 use crate::package::installer::create_symlinks;
 use semver::Version;
 use std::path::PathBuf;
 use tracing::{info, warn};
 
+/// Errors that may occur when switching package versions.
 #[derive(Debug)]
 pub enum SwitchError {
+    /// Filesystem or I/O error.
     Io(std::io::Error),
+    /// Database error from `sqlx`.
     Db(sqlx::Error),
+    /// Target package directory does not exist.
     MissingPackageDir(PathBuf),
+    /// Error while parsing or processing `symlist.ron`.
     Symlist(crate::symlist::SymlistError),
+    /// Requested package version not found in database.
     PackageNotFound(String, Version),
 }
 
@@ -29,18 +50,38 @@ impl From<crate::symlist::SymlistError> for SwitchError {
     }
 }
 
+/// Switch the active version of a package.
+///
+/// # Arguments
+/// - `pkg_name`: The package name.
+/// - `target_version`: The version to switch to.
+/// - `db`: Reference to the [`PackageDB`] instance.
+///
+/// # Workflow
+/// 1. Remove symlinks of the current active version (if present).
+///    - Ensures only symlinks created by UHPM are removed.
+///    - Non-matching symlinks or regular files are skipped safely.
+/// 2. Verify that the target package directory exists.
+///    - If not, returns [`SwitchError::MissingPackageDir`].
+/// 3. Create symlinks for the target version using [`create_symlinks`].
+/// 4. Update the package database with the new current version.
+///
+/// # Errors
+/// Returns [`SwitchError`] if:
+/// - Filesystem operations (removing files, reading symlinks) fail.
+/// - Database operations fail.
+/// - `symlist.ron` is missing or invalid.
+/// - Target package directory does not exist.
+///
+/// # Logging
+/// - Logs removed or skipped symlinks from the old version.
+/// - Logs the switch to the new version when successful.
 pub async fn switch_version(
     pkg_name: &str,
     target_version: Version,
     db: &PackageDB,
 ) -> Result<(), SwitchError> {
-
-    // let pkg: Package = db
-    //     .get_package_by_version(pkg_name, &target_version.to_string())
-    //     .await?
-    //     .ok_or(SwitchError::PackageNotFound(pkg_name.to_string(), target_version.clone()))?;
-
-
+    // Remove symlinks from the current version if available
     if let Some(current_package) = db.get_current_package(pkg_name).await? {
         let current_version_str = current_package.version().to_string();
         let current_pkg_dir = dirs::home_dir()
@@ -61,46 +102,46 @@ pub async fn switch_version(
                             Ok(meta) if meta.file_type().is_symlink() => match std::fs::read_link(&dst_abs) {
                                 Ok(link_target) if link_target == src_abs => {
                                     if let Err(e) = std::fs::remove_file(&dst_abs) {
-                                        warn!("Не удалось удалить симлинк {}: {}", dst_abs.display(), e);
+                                        warn!("Failed to remove symlink {}: {}", dst_abs.display(), e);
                                     } else {
-                                        info!("Удалён старый симлинк: {}", dst_abs.display());
+                                        info!("Removed old symlink: {}", dst_abs.display());
                                     }
                                 }
                                 Ok(link_target) => {
                                     info!(
-                                        "Пропускаю {} — симлинк указывает не на пакет (ожидалось: {}, реальность: {})",
+                                        "Skipping {} — symlink points elsewhere (expected: {}, actual: {})",
                                         dst_abs.display(),
                                         src_abs.display(),
                                         link_target.display()
                                     );
                                 }
                                 Err(e) => {
-                                    warn!("Не удалось прочитать цель симлинка {}: {}", dst_abs.display(), e);
+                                    warn!("Failed to read symlink target {}: {}", dst_abs.display(), e);
                                 }
                             },
-                            Ok(_) => info!("Пропускаю {} — не симлинк.", dst_abs.display()),
-                            Err(e) => warn!("Не удалось получить метаданные {}: {}", dst_abs.display(), e),
+                            Ok(_) => info!("Skipping {} — not a symlink.", dst_abs.display()),
+                            Err(e) => warn!("Failed to get metadata for {}: {}", dst_abs.display(), e),
                         }
                     }
                 }
                 Err(crate::symlist::SymlistError::Io(ref io_err))
                     if io_err.kind() == std::io::ErrorKind::NotFound =>
                 {
-                    info!("symlist.ron для текущей версии не найден, пропуск удаления симлинков");
+                    info!("symlist.ron for current version not found — skipping symlink cleanup");
                 }
                 Err(e) => return Err(SwitchError::Symlist(e)),
             }
         } else {
             info!(
-                "Папка текущей версии пакета не найдена ({}), пропускаем удаление симлинков",
+                "Current package directory not found ({}), skipping symlink cleanup",
                 current_pkg_dir.display()
             );
         }
     } else {
-        info!("Текущая версия пакета не записана в базе — пропускаем удаление симлинков");
+        info!("No current version recorded in database — skipping symlink cleanup");
     }
 
-
+    // Verify target package directory exists
     let new_pkg_dir = dirs::home_dir()
         .unwrap()
         .join(".uhpm/packages")
@@ -110,13 +151,15 @@ pub async fn switch_version(
         return Err(SwitchError::MissingPackageDir(new_pkg_dir));
     }
 
+    // Create symlinks for the new version
     create_symlinks(&new_pkg_dir)?;
 
+    // Update database with the new current version
     db.set_current_version(pkg_name, &target_version.to_string())
         .await?;
 
     info!(
-        "Пакет '{}' переключён на версию {} (симлинки обновлены).",
+        "Package '{}' switched to version {} (symlinks updated).",
         pkg_name, target_version
     );
 
