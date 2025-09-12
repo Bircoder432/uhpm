@@ -1,3 +1,29 @@
+//! # Package Installer Module
+//!
+//! This module provides functionality for installing UHPM packages from `.uhp` archive files.
+//! It handles package extraction, metadata parsing, symlink creation, and database registration.
+//!
+//! ## Main Components
+//!
+//! - [`InstallError`]: Enumeration of possible installation errors
+//! - [`install()`]: Main installation function for package archives
+//! - [`create_symlinks()`]: Creates symbolic links for package files
+//! - [`unpack()`]: Extracts package archives to temporary directory
+//!
+//! ## Installation Process
+//!
+//! 1. **Extraction**: Package archive is extracted to temporary directory
+//! 2. **Metadata Parsing**: Package metadata is read from `uhp.ron` file
+//! 3. **Version Check**: Verifies if package is already installed
+//! 4. **Directory Setup**: Creates package directory in UHPM home
+//! 5. **Symlink Creation**: Creates symbolic links based on `symlist.ron`
+//! 6. **Database Registration**: Records package info in package database
+//!
+//! ## Error Handling
+//!
+//! Errors are categorized into I/O errors and metadata parsing errors,
+//! both wrapped in the [`InstallError`] enumeration.
+
 use crate::db::PackageDB;
 use crate::package::Package;
 use crate::symlist;
@@ -5,9 +31,12 @@ use crate::{debug, info, warn};
 use std::fs;
 use std::path::{Path, PathBuf};
 
+/// Errors that can occur during package installation
 #[derive(Debug)]
 pub enum InstallError {
+    /// I/O error during file operations
     Io(std::io::Error),
+    /// Error parsing package metadata
     Meta(crate::package::MetaParseError),
 }
 
@@ -23,6 +52,22 @@ impl From<crate::package::MetaParseError> for InstallError {
     }
 }
 
+/// Installs a package from a `.uhp` archive file
+///
+/// # Arguments
+/// * `pkg_path` - Path to the package archive file
+/// * `db` - Reference to the package database
+///
+/// # Returns
+/// `Result<(), InstallError>` - Success or error result
+///
+/// # Process
+/// 1. Extracts package to temporary directory
+/// 2. Parses package metadata from `uhp.ron`
+/// 3. Checks if package is already installed
+/// 4. Moves package to permanent location
+/// 5. Creates symbolic links for package files
+/// 6. Updates package database
 pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError> {
     info!("installer.install.starting", pkg_path.display());
 
@@ -103,6 +148,19 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     Ok(())
 }
 
+/// Creates symbolic links for package files based on symlist configuration
+///
+/// # Arguments
+/// * `package_root` - Path to the package directory
+///
+/// # Returns
+/// `Result<Vec<PathBuf>, std::io::Error>` - List of created symlink paths or error
+///
+/// # Process
+/// 1. Loads symlink configuration from `symlist.ron`
+/// 2. Creates parent directories for symlink targets
+/// 3. Removes existing files at target locations
+/// 4. Creates symbolic links from package files to target locations
 pub fn create_symlinks(package_root: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut installed_files = Vec::new();
 
@@ -152,6 +210,19 @@ pub fn create_symlinks(package_root: &Path) -> Result<Vec<PathBuf>, std::io::Err
     Ok(installed_files)
 }
 
+/// Extracts a package archive to a temporary directory
+///
+/// # Arguments
+/// * `pkg_path` - Path to the package archive file
+///
+/// # Returns
+/// `Result<PathBuf, std::io::Error>` - Path to extracted directory or error
+///
+/// # Process
+/// 1. Validates file extension (.uhp)
+/// 2. Creates temporary extraction directory
+/// 3. Extracts tar.gz archive contents
+/// 4. Returns path to extracted directory
 fn unpack(pkg_path: &Path) -> Result<PathBuf, std::io::Error> {
     if pkg_path.extension().and_then(|s| s.to_str()) != Some("uhp") {
         return Err(std::io::Error::new(

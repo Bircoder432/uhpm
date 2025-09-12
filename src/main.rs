@@ -31,7 +31,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     db_path.push("packages.db");
 
     // Log using localized info macro
-    debug!("main.info.using_package_db"); // <- ключ из locale/lang.yml
+    debug!("main.info.using_package_db");
     debug!("main.info.db_path_is", db_path.display()); // локализованный print
 
     // Initialize database connection
