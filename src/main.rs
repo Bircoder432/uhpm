@@ -1,50 +1,38 @@
 //! # UHPM Main Entry Point
 //!
 //! This is the executable entry point for **UHPM (Universal Home Package Manager)**.
-//! It initializes logging, sets up the package database, and executes the CLI
-//! commands provided by the user.
-//!
-//! ## Responsibilities
-//! - Initialize tracing/logging via [`tracing_subscriber`].
-//! - Locate and initialize the UHPM database at `~/.uhpm/packages.db`.
-//! - Parse CLI arguments using [`clap`].
-//! - Delegate execution to [`Cli::run`](uhpm::cli::Cli::run).
-//!
-//! ## Example
-//! ```bash
-//! # Install a package from a repository
-//! uhpm install foo
-//!
-//! # Install from local file
-//! uhpm install --file ./bar.uhp
-//!
-//! # List installed packages
-//! uhpm list
-//! ```
+//! It initializes localized logging, sets up the package database, and executes
+//! the CLI commands provided by the user.
 
 use clap::Parser;
-use db::PackageDB;
-use tracing::info;
-use tracing_subscriber;
+use dirs;
 use uhpm::cli::Cli;
-use uhpm::db;
+use uhpm::db::PackageDB;
+
+// Import all macros from log.rs
+use uhpm::log::*;
+use uhpm::{debug, info, lprint, lprintln};
 
 /// Main entry point for UHPM.
 ///
-/// - Initializes logging.
-/// - Opens or creates the package database.
-/// - Parses command-line arguments.
-/// - Executes the requested command.
+/// Responsibilities:
+/// - Initialize localized tracing/logging.
+/// - Open or create the package database.
+/// - Parse CLI arguments.
+/// - Execute the requested command.
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing/logging
     tracing_subscriber::fmt::init();
 
     // Determine database path (~/.uhpm/packages.db)
-    let mut db_path = dirs::home_dir().unwrap();
+    let mut db_path = dirs::home_dir().ok_or("Could not determine home directory")?;
     db_path.push(".uhpm");
     db_path.push("packages.db");
-    info!("Using package database at {:?}", db_path);
+
+    // Log using localized info macro
+    info!("main.info.using_package_db"); // <- ключ из locale/lang.yml
+    lprintln!("main.info.db_path_is", db_path.display()); // локализованный print
 
     // Initialize database connection
     let package_db = PackageDB::new(&db_path)?.init().await?;
@@ -52,6 +40,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Parse CLI arguments and execute subcommand
     let args = Cli::parse();
     args.run(&package_db).await?;
+
+    // Optional: localized debug
+    debug!("main.debug.uhpm_started");
 
     Ok(())
 }

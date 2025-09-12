@@ -1,0 +1,3 @@
+main.info.using_package_db: "Использование базы данных пакетов"
+main.info.db_path_is: "Путь к базе данных: {}"
+main.debug.uhpm_started: "UHPM запущен"

@@ -33,6 +33,8 @@
 pub mod cli;
 pub mod db;
 pub mod fetcher;
+pub mod locale;
+pub mod log;
 pub mod package;
 pub mod repo;
 pub mod self_remove;

@@ -28,10 +28,13 @@ use crate::repo::{RepoDB, parse_repos};
 use crate::self_remove;
 use clap::CommandFactory;
 use clap::{Parser, Subcommand};
+use clap_complete::{
+    generate,
+    shells::{Bash, Fish, Zsh},
+};
+use std::io;
 use std::path::{Path, PathBuf};
 use tracing::{error, info, warn};
-use clap_complete::{generate,shells::{Fish,Zsh,Bash}};
-use std::io;
 
 /// Main CLI parser for UHPM.
 ///
@@ -98,7 +101,7 @@ pub enum Commands {
     Completions {
         /// Target shell (e.g. fish,bash,zsh)
         shell: String,
-    }
+    },
 }
 
 impl Cli {
@@ -231,7 +234,10 @@ impl Cli {
                         );
                         match switcher::switch_version(pkg_name, ver, db).await {
                             Ok(_) => {
-                                info!("Package '{}' successfully switched to {}", pkg_name, pkg_version)
+                                info!(
+                                    "Package '{}' successfully switched to {}",
+                                    pkg_name, pkg_version
+                                )
                             }
                             Err(e) => error!("Error switching version: {:?}", e),
                         }
@@ -244,7 +250,7 @@ impl Cli {
 
             Commands::SelfRemove => {
                 self_remove::self_remove()?;
-            },
+            }
             Commands::Completions { shell } => {
                 match shell.to_lowercase().as_str() {
                     "bash" => generate(Bash, &mut Cli::command(), "uhpm", &mut io::stdout()),

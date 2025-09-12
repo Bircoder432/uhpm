@@ -1,0 +1,5 @@
+# en.yml - English localization for UHPM
+
+main.info.using_package_db: "Using package database"
+main.info.db_path_is: "Database path is: {}"
+main.debug.uhpm_started: "UHPM started"
