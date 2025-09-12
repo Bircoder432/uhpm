@@ -1,127 +1,241 @@
-main.debug.using_package_db: "Использование базы данных пакетов"
-main.debug.db_path_is: "Путь к базе данных: {}"
-main.info.uhpm_started: "UHPM запущен"
-installer.install.starting: "Начало установки пакета: {}"
-installer.install.unpacked: "Архив распакован в {}"
-installer.install.reading_meta: "Чтение метаданных из {}"
-installer.install.package_info: "Пакет: {} версия {}"
-installer.install.already_installed: "Пакет {} уже установлен с версией {}"
-installer.install.same_version_skipped: "Та же версия обнаружена — установка пропущена"
-installer.install.package_root: "Путь к пакету: {}"
-installer.install.removing_existing: "Удаление существующей директории: {}"
-installer.install.created_dir: "Директория пакета создана: {}"
-installer.install.moved_package: "Пакет перемещён в {}"
-installer.install.creating_symlinks: "Создание символических ссылок для нового пакета"
-installer.install.updating_version: "Обновление версии пакета — ссылки не пересоздаются"
-installer.install.adding_to_db: "Добавление пакета {} в базу данных с {} файлами"
-installer.install.success: "Пакет {} успешно установлен"
+# ru.yml - Russian localization for UHPM
 
-installer.symlinks.loading: "Загрузка списка ссылок из {}"
-installer.symlinks.processing: "Обработка ссылки: {} -> {}"
-installer.symlinks.src_not_found: "Исходный файл не найден: {}"
-installer.symlinks.created_parent: "Создана директория для ссылки: {}"
-installer.symlinks.removed_existing: "Удалена существующая ссылка: {}"
-installer.symlinks.created_link: "Ссылка создана: {} -> {}"
-installer.symlinks.load_failed: "Не удалось загрузить список ссылок: {:?}"
-installer.symlinks.total_created: "Создано {} ссылок"
+main:
+  debug:
+    using_package_db: "Использование базы данных пакетов"
+    db_path_is: "Путь к базе данных: {}"
+  info:
+    uhpm_started: "UHPM запущен"
 
-installer.unpack.unpacking: "Распаковка {} в {}"
-installer.unpack.done: "Распаковано в {}"
+installer:
+  install:
+    starting: "Начало установки пакета: {}"
+    unpacked: "Архив распакован в {}"
+    reading_meta: "Чтение метаданных из {}"
+    package_info: "Пакет: {} версия {}"
+    already_installed: "Пакет {} уже установлен с версией {}"
+    same_version_skipped: "Та же версия обнаружена — установка пропущена"
+    package_root: "Путь к пакету: {}"
+    removing_existing: "Удаление существующей директории: {}"
+    created_dir: "Директория пакета создана: {}"
+    moved_package: "Пакет перемещён в {}"
+    creating_symlinks: "Создание символических ссылок для нового пакета"
+    updating_version: "Обновление версии пакета — ссылки не пересоздаются"
+    adding_to_db: "Добавление пакета {} в базу данных с {} файлами"
+    success: "Пакет {} успешно установлен"
 
-uhpmk.init.uhp_ron_created: "Шаблон uhp.ron создан в {}"
-uhpmk.init.symlist_created: "Шаблон symlist.ron создан в {}"
-uhpmk.pack.meta_not_found: "uhp.ron не найден в {}"
-uhpmk.pack.package_packed: "Пакет упакован в {}"
+  symlinks:
+    loading: "Загрузка списка ссылок из {}"
+    processing: "Обработка ссылки: {} -> {}"
+    src_not_found: "Исходный файл не найден: {}"
+    created_parent: "Создана директория для ссылки: {}"
+    removed_existing: "Удалена существующая ссылка: {}"
+    created_link: "Ссылка создана: {} -> {}"
+    load_failed: "Не удалось загрузить список ссылок: {:?}"
+    total_created: "Создано {} ссылок"
 
-uhpm.remove.pkg_not_found_db: "Пакет '{}' не найден в базе данных"
-uhpm.remove.attempting_remove: "Попытка удалить пакет: {}-{}"
-uhpm.remove.pkg_dir_removed: "Удалена директория пакета: {}"
-uhpm.remove.pkg_dir_not_found: "Директория пакета '{}' не найдена: {}"
-uhpm.remove.file_removed: "Удалено: {}"
-uhpm.remove.pkg_entry_removed: "Запись пакета '{}' удалена из базы данных"
+  unpack:
+    unpacking: "Распаковка {} в {}"
+    done: "Распаковано в {}"
 
-package.switcher.remove_symlink_failed: "Не удалось удалить симлинк {}: {}"
-package.switcher.removed_old_symlink: "Удален старый симлинк: {}"
-package.switcher.skipping_symlink_wrong_target: "Пропускаем {} — симлинк указывает в другое место (ожидалось: {}, фактически: {})"
-package.switcher.read_symlink_failed: "Не удалось прочитать цель симлинка {}: {}"
-package.switcher.skipping_not_symlink: "Пропускаем {} — не симлинк."
-package.switcher.metadata_failed: "Не удалось получить метаданные для {}: {}"
-package.switcher.symlist_not_found_cleanup_skip: "symlist.ron для текущей версии не найден — пропускаем очистку симлинков"
-package.switcher.package_dir_not_found_cleanup_skip: "Директория текущего пакета не найдена ({}), пропускаем очистку симлинков"
-package.switcher.no_current_version_cleanup_skip: "Текущая версия не записана в базе данных — пропускаем очистку симлинков"
-package.switcher.switch_success: "Пакет '{}' переключен на версию {} (симлинки обновлены)."
+uhpmk:
+  init:
+    uhp_ron_created: "Шаблон uhp.ron создан в {}"
+    symlist_created: "Шаблон symlist.ron создан в {}"
+  pack:
+    meta_not_found: "uhp.ron не найден в {}"
+    package_packed: "Пакет упакован в {}"
 
-package.updater.package_not_installed: "Пакет {} не установлен"
-package.updater.installed_version: "Установленная версия {}: {}"
-package.updater.repo_db_not_found: "База данных репозитория {} не найдена, пропускаем"
-package.updater.new_version_found: "Найдена новая версия {}: {}"
-package.updater.update_success: "Пакет {} успешно обновлен"
-package.updater.already_up_to_date: "Пакет {} уже обновлен до последней версии"
+uhpm:
+  remove:
+    pkg_not_found_db: "Пакет '{}' не найден в базе данных"
+    attempting_remove: "Попытка удалить пакет: {}-{}"
+    pkg_dir_removed: "Удалена директория пакета: {}"
+    pkg_dir_not_found: "Директория пакета '{}' не найдена: {}"
+    file_removed: "Удалено: {}"
+    pkg_entry_removed: "Запись пакета '{}' удалена из базы данных"
 
-cli.install.from_file: "Установка пакета из файла: {}"
-cli.install.repo_db_not_found: "База данных репозитория {} не найдена, пропускаем"
-cli.install.package_not_found: "Пакет {} не найден ни в одном репозитории"
-cli.install.downloading: "Загрузка и установка пакета {}..."
-cli.install.no_file_or_package: "Не указан файл или имя пакета для установки"
-cli.remove.no_packages: "Не указаны пакеты для удаления"
-cli.remove.removing: "Удаление пакета: {}"
-cli.remove.failed: "Не удалось удалить {}: {:?}"
-cli.list.no_packages: "Нет установленных пакетов"
-cli.list.installed_packages: "Установленные пакеты:"
-cli.list.package_format: " - {} {} {}"
-cli.update.success_or_up_to_date: "Пакет '{}' обновлен или уже актуален"
-cli.update.not_installed: "Пакет '{}' не установлен"
-cli.update.error: "Ошибка обновления пакета '{}': {:?}"
-cli.switch.invalid_format: "Неверный формат '{}'. Используйте: name@version"
-cli.switch.switching: "Переключение пакета '{}' на версию {}..."
-cli.switch.success: "Пакет '{}' успешно переключен на {}"
-cli.switch.error: "Ошибка переключения версии: {:?}"
-cli.switch.invalid_version: "Неверный формат версии '{}': {}"
+package:
+  switcher:
+    remove_symlink_failed: "Не удалось удалить симлинк {}: {}"
+    removed_old_symlink: "Удален старый симлинк: {}"
+    skipping_symlink_wrong_target: "Пропускаем {} — симлинк указывает в другое место (ожидалось: {}, фактически: {})"
+    read_symlink_failed: "Не удалось прочитать цель симлинка {}: {}"
+    skipping_not_symlink: "Пропускаем {} — не симлинк."
+    metadata_failed: "Не удалось получить метаданные для {}: {}"
+    symlist_not_found_cleanup_skip: "symlist.ron для текущей версии не найден — пропускаем очистку симлинков"
+    package_dir_not_found_cleanup_skip: "Директория текущего пакета не найдена ({}), пропускаем очистку симлинков"
+    no_current_version_cleanup_skip: "Текущая версия не записана в базе данных — пропускаем очистку симлинков"
+    switch_success: "Пакет '{}' переключен на версию {} (симлинки обновлены)."
 
-db.new.creating: "Создание PackageDB по пути {:?}"
-db.new.file_created: "Новый файл базы данных создан по пути {:?}"
-db.init.connecting: "Подключение к базе данных: {}"
-db.init.ensuring_tables: "Проверка существования необходимых таблиц"
-db.init.success: "База данных инициализирована по пути {:?}"
-db.add_package.adding: "Добавление пакета {} версии {}"
-db.add_package.added: "Пакет {} добавлен"
-db.add_package_full.adding: "Добавление пакета {} версии {} с {} файлами"
-db.add_package_full.adding_dependency: "Добавление зависимости {} -> {}"
-db.add_package_full.adding_file: "Добавление установленного файла: {}"
-db.add_package_full.success: "Пакет {} успешно добавлен"
-db.get_installed_files.fetching: "Получение установленных файлов для {}"
-db.get_installed_files.found: "Найдено {} файлов для пакета {}"
-db.remove_package.removing: "Удаление пакета {} из базы данных"
-db.remove_package.removed: "Пакет {} удален"
-db.get_package_version.fetching: "Получение текущей версии {}"
-db.get_package_version.result: "Текущая версия {}: {:?}"
-db.list_packages.listing: "Получение списка всех пакетов"
-db.list_packages.found: "Найден пакет: {} {} (current={})"
-db.is_installed.checking: "Проверка установлен ли {}"
-db.is_installed.latest_version: "Последняя версия {}: {}"
-db.is_installed.not_found: "Пакет {} не найден"
-db.get_current_package.fetching: "Получение текущего пакета {}"
-db.get_current_package.not_found: "Пакет {} не найден"
-db.get_current_package.retrieved: "Получен пакет: {:?}"
-db.set_current_version.setting: "Установка {} как текущей версии для {}"
-db.set_current_version.success: "{} теперь текущая для {}"
-db.get_package_by_version.fetching: "Получение пакета {} версии {}"
-db.get_package_by_version.not_found: "Пакет {} версии {} не найден"
-db.get_package_by_version.retrieved: "Получен пакет: {:?}"
+  updater:
+    package_not_installed: "Пакет {} не установлен"
+    installed_version: "Установленная версия {}: {}"
+    repo_db_not_found: "База данных репозитория {} не найдена, пропускаем"
+    new_version_found: "Найдена новая версия {}: {}"
+    update_success: "Пакет {} успешно обновлен"
+    already_up_to_date: "Пакет {} уже обновлен до последней версии"
 
-fetcher.download.failed: "Не удалось загрузить {}: {}"
-fetcher.install.from_url: "Установка пакета из {}..."
+cli:
+  install:
+    from_file: "Установка пакета из файла: {}"
+    repo_db_not_found: "База данных репозитория {} не найдена, пропускаем"
+    package_not_found: "Пакет {} не найден ни в одном репозитории"
+    downloading: "Загрузка и установка пакета {}..."
+    no_file_or_package: "Не указан файл или имя пакета для установки"
 
-test.installer.tmp_dir: "TMP_DIR = {:?}"
-test.installer.home_redirected: "HOME переназначен на {:?}"
-test.installer.binary_created: "Создан бинарник: {:?}"
-test.installer.ron_generated: "Сгенерирован uhp.ron:\n{}"
-test.installer.symlist_generated: "Сгенерирован symlist.ron:\n{}"
-test.installer.archive_creation: "Архив будет создан в {:?}"
-test.installer.archive_created: "Архив создан: {:?}"
-test.installer.db_creation: "База данных будет создана в {:?}"
-test.installer.installation_start: "Начинаем установку пакета"
-test.installer.installation_complete: "Установка пакета завершена"
-test.installer.package_version: "Версия пакета после установки: {:?}"
-test.installer.installed_files: "Установленные файлы: {:?}"
-test.installer.file_added_to_archive: "Добавлен файл в архив: {:?}"
+  remove:
+    no_packages: "Не указаны пакеты для удаления"
+    removing: "Удаление пакета: {}"
+    failed: "Не удалось удалить {}: {:?}"
+
+  list:
+    no_packages: "Нет установленных пакетов"
+    installed_packages: "Установленные пакеты:"
+    package_format: " - {} {} {}"
+
+  update:
+    success_or_up_to_date: "Пакет '{}' обновлен или уже актуален"
+    not_installed: "Пакет '{}' не установлен"
+    error: "Ошибка обновления пакета '{}': {:?}"
+
+  switch:
+    invalid_format: "Неверный формат '{}'. Используйте: name@version"
+    switching: "Переключение пакета '{}' на версию {}..."
+    success: "Пакет '{}' успешно переключен на {}"
+    error: "Ошибка переключения версии: {:?}"
+    invalid_version: "Неверный формат версии '{}': {}"
+
+db:
+  new:
+    creating: "Создание PackageDB по пути {:?}"
+    file_created: "Новый файл базы данных создан по пути {:?}"
+
+  init:
+    connecting: "Подключение к базе данных: {}"
+    ensuring_tables: "Проверка существования необходимых таблиц"
+    success: "База данных инициализирована по пути {:?}"
+
+  add_package:
+    adding: "Добавление пакета {} версии {}"
+    added: "Пакет {} добавлен"
+
+  add_package_full:
+    adding: "Добавление пакета {} версии {} с {} файлами"
+    adding_dependency: "Добавление зависимости {} -> {}"
+    adding_file: "Добавление установленного файла: {}"
+    success: "Пакет {} успешно добавлен"
+
+  get_installed_files:
+    fetching: "Получение установленных файлов для {}"
+    found: "Найдено {} файлов для пакета {}"
+
+  remove_package:
+    removing: "Удаление пакета {} из базы данных"
+    removed: "Пакет {} удален"
+
+  get_package_version:
+    fetching: "Получение текущей версии {}"
+    result: "Текущая версия {}: {:?}"
+
+  list_packages:
+    listing: "Получение списка всех пакетов"
+    found: "Найден пакет: {} {} (current={})"
+
+  is_installed:
+    checking: "Проверка установлен ли {}"
+    latest_version: "Последняя версия {}: {}"
+    not_found: "Пакет {} не найден"
+
+  get_current_package:
+    fetching: "Получение текущего пакета {}"
+    not_found: "Пакет {} не найден"
+    retrieved: "Получен пакет: {:?}"
+
+  set_current_version:
+    setting: "Установка {} как текущей версии для {}"
+    success: "{} теперь текущая для {}"
+
+  get_package_by_version:
+    fetching: "Получение пакета {} версии {}"
+    not_found: "Пакет {} версии {} не найден"
+    retrieved: "Получен пакет: {:?}"
+
+fetcher:
+  download:
+    failed: "Не удалось загрузить {}: {}"
+  install:
+    from_url: "Установка пакета из {}..."
+
+test:
+  installer:
+    tmp_dir: "TMP_DIR = {:?}"
+    home_redirected: "HOME переназначен на {:?}"
+    binary_created: "Создан бинарник: {:?}"
+    ron_generated: "Сгенерирован uhp.ron:\n{}"
+    symlist_generated: "Сгенерирован symlist.ron:\n{}"
+    archive_creation: "Архив будет создан в {:?}"
+    archive_created: "Архив создан: {:?}"
+    db_creation: "База данных будет создана в {:?}"
+    installation_start: "Начинаем установку пакета"
+    installation_complete: "Установка пакета завершена"
+    package_version: "Версия пакета после установки: {:?}"
+    installed_files: "Установленные файлы: {:?}"
+    file_added_to_archive: "Добавлен файл в архив: {:?}"
+
+  remover_test:
+    setup_tmp_dir: "Настройка временной директории: {}"
+    created_pkg_dir: "Создана директория пакета: {}"
+    created_binary: "Создан бинарный файл: {}"
+    created_meta: "Создан файл метаданных: {}"
+    created_symlist: "Создан файл symlist: {}"
+    created_target_dir: "Создана целевая директория для симлинков"
+    db_initialized: "База данных инициализирована: {}"
+    archive_created: "Архив пакета создан: {}"
+    package_installed: "Пакет успешно установлен"
+    installation_verified: "Установка пакета подтверждена"
+    removal_successful: "Удаление пакета завершено успешно"
+    db_entry_removed: "Запись в базе данных удалена"
+    symlink_removed: "Симлинк удален"
+    pkg_dir_removed: "Директория пакета удалена"
+    setup_tmp_dir_nonexistent: "Настройка временной директории для теста несуществующего пакета: {}"
+    db_initialized_nonexistent: "База данных инициализирована для теста несуществующего пакета: {}"
+    nonexistent_removal_ok: "Удаление несуществующего пакета обработано корректно"
+    setup_tmp_dir_missing: "Настройка временной директории для теста отсутствующей директории: {}"
+    db_initialized_missing: "База данных инициализирована для теста отсутствующей директории: {}"
+    package_added_to_db: "Пакет добавлен в базу данных"
+    missing_dir_removal_ok: "Удаление пакета с отсутствующей директорией обработано корректно"
+    db_entry_removed_missing: "Запись в базе данных удалена для случая отсутствующей директории"
+
+  switcher_test:
+    setup_tmp_dir: "Настройка временной директории для теста переключения: {}"
+    created_pkg_dir: "Создана директория пакета: {}"
+    created_binary: "Создан бинарный файл: {}"
+    created_meta: "Создан файл метаданных: {}"
+    created_symlist: "Создан файл symlist: {}"
+    created_target_dir: "Создана целевая директория для симлинков"
+    db_initialized: "База данных инициализирована: {}"
+    archive_created: "Архив пакета создан: {}"
+    package_installed: "Пакет установлен: {}"
+    initial_version_set: "Начальная версия установлена на 1.0.0"
+    initial_version_verified: "Начальная версия подтверждена"
+    switch_successful: "Переключение версии завершено успешно"
+    version_switched_verified: "Переключение версии подтверждено в базе данных"
+    symlink_updated: "Симлинк обновлен на новую версию"
+    setup_tmp_dir_nonexistent: "Настройка временной директории для теста несуществующего пакета: {}"
+    db_initialized_nonexistent: "База данных инициализирована для теста несуществующего пакета: {}"
+    nonexistent_switch_failed: "Переключение правильно завершилось ошибкой для несуществующего пакета"
+    setup_tmp_dir_missing: "Настройка временной директории для теста отсутствующей версии: {}"
+    db_initialized_missing: "База данных инициализирована для теста отсутствующей версии: {}"
+    package_installed_missing: "Пакет установлен для теста отсутствующей версии"
+    missing_target_switch_failed: "Переключение правильно завершилось ошибкой для отсутствующей версии"
+    initial_symlink_verified: "Начальный симлинк подтвержден (указывает на версию 1.0.0)"
+    package_1_installed: "Пакет версии 1.0.0 установлен"
+    package_2_installed: "Пакет версии 2.0.0 установлен"
+    symlink_exists: "Симлинк существует: {}"
+    symlink_target: "Цель симлинка: {}"
+    symlink_read_error: "Ошибка чтения симлинка: {}"
+    symlink_not_found: "Симлинк не найден перед переключением"
+    symlink_exists_after: "Симлинк существует после переключения: {}"
+    symlink_target_after: "Цель симлинка после переключения: {}"
+    symlink_read_error_after: "Ошибка чтения симлинка после переключения: {}"
