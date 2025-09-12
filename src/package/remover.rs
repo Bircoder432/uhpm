@@ -21,7 +21,7 @@
 //! both wrapped in the [`DeleteError`] enumeration.
 
 use crate::db::PackageDB;
-use crate::{error, info, warn};
+use crate::{info, warn};
 
 /// Errors that can occur during package removal
 #[derive(Debug)]

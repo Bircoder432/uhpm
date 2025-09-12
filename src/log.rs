@@ -6,7 +6,6 @@
 
 use crate::locale::Locale;
 use once_cell::sync::Lazy;
-use tracing::{debug as t_debug, error as t_error, info as t_info, warn as t_warn};
 
 /// Global static logger
 pub static LOGGER: Lazy<Locale> = Lazy::new(|| Locale::initialize());
