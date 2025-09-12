@@ -26,6 +26,7 @@ use crate::package::switcher;
 use crate::package::updater;
 use crate::repo::{RepoDB, parse_repos};
 use crate::self_remove;
+use crate::{error, info, lprintln, warn};
 use clap::CommandFactory;
 use clap::{Parser, Subcommand};
 use clap_complete::{
@@ -34,7 +35,6 @@ use clap_complete::{
 };
 use std::io;
 use std::path::{Path, PathBuf};
-use tracing::{error, info, warn};
 
 /// Main CLI parser for UHPM.
 ///
@@ -121,7 +121,7 @@ impl Cli {
             } => {
                 // Install from file
                 if let Some(path) = file {
-                    info!("Installing package from file: {}", path.display());
+                    info!("cli.install.from_file", path.display());
                     installer::install(path, db).await.unwrap();
                     return Ok(());
                 }
@@ -143,7 +143,7 @@ impl Cli {
 
                             let repo_db_path = Path::new(&repo_path).join("packages.db");
                             if !repo_db_path.exists() {
-                                warn!("Repository database {} not found, skipping", repo_name);
+                                warn!("cli.install.repo_db_not_found", repo_name);
                                 continue;
                             }
 
@@ -166,25 +166,25 @@ impl Cli {
                         }
 
                         if urls_to_download.is_empty() {
-                            error!("Package {} not found in any repository", pkg_name);
+                            error!("cli.install.package_not_found", pkg_name);
                         } else {
-                            info!("Downloading and installing package {}...", pkg_name);
+                            info!("cli.install.downloading", pkg_name);
                             fetcher::fetch_and_install_parallel(&urls_to_download, db).await?;
                         }
                     }
                 } else {
-                    error!("Neither file nor package name specified for installation");
+                    error!("cli.install.no_file_or_package");
                 }
             }
 
             Commands::Remove { packages } => {
                 if packages.is_empty() {
-                    error!("No packages specified for removal");
+                    error!("cli.remove.no_packages");
                 } else {
                     for pkg_name in packages {
-                        info!("Removing package: {}", pkg_name);
+                        info!("cli.remove.removing", pkg_name);
                         if let Err(e) = remover::remove(pkg_name, db).await {
-                            error!("Failed to remove {}: {:?}", pkg_name, e);
+                            error!("cli.remove.failed", pkg_name, e);
                         }
                     }
                 }
@@ -193,12 +193,12 @@ impl Cli {
             Commands::List => {
                 let packages = db.list_packages().await?;
                 if packages.is_empty() {
-                    println!("No installed packages");
+                    lprintln!("cli.list.no_packages");
                 } else {
-                    println!("Installed packages:");
+                    lprintln!("cli.list.installed_packages");
                     for (name, version, current) in packages {
                         let chr = if current { '*' } else { ' ' };
-                        println!(" - {} {} {}", name, version, chr);
+                        lprintln!("cli.list.package_format", name, version, chr);
                     }
                 }
             }
@@ -206,12 +206,12 @@ impl Cli {
             Commands::Update { package } => {
                 let updater_result = updater::update_package(package, db).await;
                 match updater_result {
-                    Ok(_) => info!("Package '{}' updated or already up to date", package),
+                    Ok(_) => info!("cli.update.success_or_up_to_date", package),
                     Err(updater::UpdaterError::NotFound(_)) => {
-                        println!("Package '{}' is not installed", package);
+                        lprintln!("cli.update.not_installed", package);
                     }
                     Err(e) => {
-                        error!("Error updating package '{}': {:?}", package, e);
+                        error!("cli.update.error", package, e);
                     }
                 }
             }
@@ -219,7 +219,7 @@ impl Cli {
             Commands::Switch { target } => {
                 let parts: Vec<&str> = target.split('@').collect();
                 if parts.len() != 2 {
-                    error!("Invalid format '{}'. Use: name@version", target);
+                    error!("cli.switch.invalid_format", target);
                     return Ok(());
                 }
 
@@ -228,22 +228,16 @@ impl Cli {
 
                 match semver::Version::parse(pkg_version) {
                     Ok(ver) => {
-                        info!(
-                            "Switching package '{}' to version {}...",
-                            pkg_name, pkg_version
-                        );
+                        info!("cli.switch.switching", pkg_name, pkg_version);
                         match switcher::switch_version(pkg_name, ver, db).await {
                             Ok(_) => {
-                                info!(
-                                    "Package '{}' successfully switched to {}",
-                                    pkg_name, pkg_version
-                                )
+                                info!("cli.switch.success", pkg_name, pkg_version)
                             }
-                            Err(e) => error!("Error switching version: {:?}", e),
+                            Err(e) => error!("cli.switch.error", e),
                         }
                     }
                     Err(e) => {
-                        error!("Invalid version format '{}': {}", pkg_version, e);
+                        error!("cli.switch.invalid_version", pkg_version, e);
                     }
                 }
             }

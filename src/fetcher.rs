@@ -36,13 +36,13 @@
 //! # });
 //! ```
 
+use crate::{error, info};
 use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 use tokio::fs;
-use tracing::{error, info};
 
 use crate::db::PackageDB;
 use crate::package::installer;
@@ -123,7 +123,7 @@ pub async fn fetch_packages(urls: &[String]) -> HashMap<String, PathBuf> {
                 bar.set_message(format!("Downloaded: {}", url));
             }
             Err(e) => {
-                error!("Failed to download {}: {}", url, e);
+                error!("fetcher.download.failed", url, e);
                 bar.inc(1);
             }
         }
@@ -135,13 +135,13 @@ pub async fn fetch_packages(urls: &[String]) -> HashMap<String, PathBuf> {
 /// Installs already downloaded packages into the database.
 ///
 /// # Errors
-/// Returns [`FetchError::Installer`] if the installation fails.
+/// Returns [`FetchError::Installer] if the installation fails.
 pub async fn install_fetched_packages(
     packages: &HashMap<String, PathBuf>,
     package_db: &PackageDB,
 ) -> Result<(), FetchError> {
     for (url, path) in packages {
-        info!("Installing package from {}...", url);
+        info!("fetcher.install.from_url", url);
         installer::install(path, package_db).await.map_err(|e| {
             FetchError::Installer(format!("Installation failed for {}: {:?}", url, e))
         })?;

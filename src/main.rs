@@ -10,8 +10,8 @@ use uhpm::cli::Cli;
 use uhpm::db::PackageDB;
 
 // Import all macros from log.rs
-use uhpm::log::*;
-use uhpm::{debug, info, lprint, lprintln};
+
+use uhpm::{debug, info};
 
 /// Main entry point for UHPM.
 ///
@@ -31,18 +31,17 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     db_path.push("packages.db");
 
     // Log using localized info macro
-    info!("main.info.using_package_db"); // <- ключ из locale/lang.yml
-    lprintln!("main.info.db_path_is", db_path.display()); // локализованный print
+    debug!("main.info.using_package_db"); // <- ключ из locale/lang.yml
+    debug!("main.info.db_path_is", db_path.display()); // локализованный print
 
     // Initialize database connection
     let package_db = PackageDB::new(&db_path)?.init().await?;
-
+    info!("main.info.uhpm_started");
     // Parse CLI arguments and execute subcommand
     let args = Cli::parse();
     args.run(&package_db).await?;
 
     // Optional: localized debug
-    debug!("main.debug.uhpm_started");
 
     Ok(())
 }

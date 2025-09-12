@@ -6,7 +6,6 @@
 //! - Loading translations from `locale/<lang>.yml`.
 //! - Retrieving localized messages.
 
-use serde::Deserialize;
 use std::{collections::HashMap, fs, path::Path};
 use sys_locale::get_locale;
 use tracing::warn;

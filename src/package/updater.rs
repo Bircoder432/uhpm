@@ -14,8 +14,8 @@
 use crate::db::PackageDB;
 use crate::fetcher;
 use crate::repo::{RepoDB, RepoError, parse_repos};
+use crate::{error, info, warn};
 use semver::Version;
-use tracing::{error, info, warn};
 
 /// Errors that may occur during package update.
 #[derive(thiserror::Error, Debug)]
@@ -75,12 +75,15 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
     // Step 1: check installed version
     let installed_version = package_db.get_package_version(pkg_name).await?;
     if installed_version.is_none() {
-        warn!("Package {} is not installed", pkg_name);
+        warn!("package.updater.package_not_installed", pkg_name);
         return Err(UpdaterError::NotFound(pkg_name.to_string()));
     }
 
     let installed_version = installed_version.unwrap();
-    info!("Installed version of {}: {}", pkg_name, installed_version);
+    info!(
+        "package.updater.installed_version",
+        pkg_name, &installed_version
+    );
 
     // Step 2: parse repository configuration
     let repos_path = dirs::home_dir().unwrap().join(".uhpm/repos.ron");
@@ -98,7 +101,7 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
         let repo_db_path = std::path::Path::new(&repo_path).join("packages.db");
 
         if !repo_db_path.exists() {
-            warn!("Repository database {} not found, skipping", repo_name);
+            warn!("package.updater.repo_db_not_found", repo_name);
             continue;
         }
 
@@ -120,14 +123,14 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
     // Step 4: install update if available
     if let Some(url) = latest_url {
         info!(
-            "New version of {} found: {}",
+            "package.updater.new_version_found",
             pkg_name,
             latest_version.unwrap()
         );
         fetcher::fetch_and_install_parallel(&[url], package_db).await?;
-        info!("Package {} updated successfully", pkg_name);
+        info!("package.updater.update_success", pkg_name);
     } else {
-        info!("Package {} is already up to date", pkg_name);
+        info!("package.updater.already_up_to_date", pkg_name);
     }
 
     Ok(())

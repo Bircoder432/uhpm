@@ -15,9 +15,9 @@
 
 use crate::db::PackageDB;
 use crate::package::installer::create_symlinks;
+use crate::{info, warn};
 use semver::Version;
 use std::path::PathBuf;
-use tracing::{info, warn};
 
 /// Errors that may occur when switching package versions.
 #[derive(Debug)]
@@ -99,46 +99,63 @@ pub async fn switch_version(
                         }
 
                         match std::fs::symlink_metadata(&dst_abs) {
-                            Ok(meta) if meta.file_type().is_symlink() => match std::fs::read_link(&dst_abs) {
-                                Ok(link_target) if link_target == src_abs => {
-                                    if let Err(e) = std::fs::remove_file(&dst_abs) {
-                                        warn!("Failed to remove symlink {}: {}", dst_abs.display(), e);
-                                    } else {
-                                        info!("Removed old symlink: {}", dst_abs.display());
+                            Ok(meta) if meta.file_type().is_symlink() => {
+                                match std::fs::read_link(&dst_abs) {
+                                    Ok(link_target) if link_target == src_abs => {
+                                        if let Err(e) = std::fs::remove_file(&dst_abs) {
+                                            warn!(
+                                                "package.switcher.remove_symlink_failed",
+                                                dst_abs.display(),
+                                                e
+                                            );
+                                        } else {
+                                            info!(
+                                                "package.switcher.removed_old_symlink",
+                                                dst_abs.display()
+                                            );
+                                        }
+                                    }
+                                    Ok(link_target) => {
+                                        info!(
+                                            "package.switcher.skipping_symlink_wrong_target",
+                                            dst_abs.display(),
+                                            src_abs.display(),
+                                            link_target.display()
+                                        );
+                                    }
+                                    Err(e) => {
+                                        warn!(
+                                            "package.switcher.read_symlink_failed",
+                                            dst_abs.display(),
+                                            e
+                                        );
                                     }
                                 }
-                                Ok(link_target) => {
-                                    info!(
-                                        "Skipping {} — symlink points elsewhere (expected: {}, actual: {})",
-                                        dst_abs.display(),
-                                        src_abs.display(),
-                                        link_target.display()
-                                    );
-                                }
-                                Err(e) => {
-                                    warn!("Failed to read symlink target {}: {}", dst_abs.display(), e);
-                                }
-                            },
-                            Ok(_) => info!("Skipping {} — not a symlink.", dst_abs.display()),
-                            Err(e) => warn!("Failed to get metadata for {}: {}", dst_abs.display(), e),
+                            }
+                            Ok(_) => {
+                                info!("package.switcher.skipping_not_symlink", dst_abs.display())
+                            }
+                            Err(e) => {
+                                warn!("package.switcher.metadata_failed", dst_abs.display(), e)
+                            }
                         }
                     }
                 }
                 Err(crate::symlist::SymlistError::Io(ref io_err))
                     if io_err.kind() == std::io::ErrorKind::NotFound =>
                 {
-                    info!("symlist.ron for current version not found — skipping symlink cleanup");
+                    info!("package.switcher.symlist_not_found_cleanup_skip");
                 }
                 Err(e) => return Err(SwitchError::Symlist(e)),
             }
         } else {
             info!(
-                "Current package directory not found ({}), skipping symlink cleanup",
+                "package.switcher.package_dir_not_found_cleanup_skip",
                 current_pkg_dir.display()
             );
         }
     } else {
-        info!("No current version recorded in database — skipping symlink cleanup");
+        info!("package.switcher.no_current_version_cleanup_skip");
     }
 
     // Verify target package directory exists
@@ -158,10 +175,7 @@ pub async fn switch_version(
     db.set_current_version(pkg_name, &target_version.to_string())
         .await?;
 
-    info!(
-        "Package '{}' switched to version {} (symlinks updated).",
-        pkg_name, target_version
-    );
+    info!("package.switcher.switch_success", pkg_name, target_version);
 
     Ok(())
 }
