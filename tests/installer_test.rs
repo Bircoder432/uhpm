@@ -1,7 +1,7 @@
 use flate2::Compression;
 use flate2::write::GzEncoder;
 use std::fs::{self, File};
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tar::Builder;
 use tempfile::tempdir;
 use tracing::{debug, info};

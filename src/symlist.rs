@@ -1,24 +1,59 @@
+//! # Symlist
+//!
+//! This module handles **symbolic link lists** (`symlist.ron`),
+//! which describe what files from an installed package should be symlinked
+//! into user/system paths.
+//!
+//! ## Example format (`symlist.ron`)
+//! ```ron
+//! [
+//!     (
+//!         source: "bin/my_binary",                 // path inside the package
+//!         target: "$HOME/.local/bin/my_binary",    // target path (with env vars)
+//!     ),
+//!     (
+//!         source: "share/applications/app.desktop",
+//!         target: "$XDG_DATA_HOME/applications/app.desktop",
+//!     ),
+//! ]
+//! ```
+//!
+//! ## Supported variables
+//! - `$HOME` — user home directory
+//! - `$XDG_DATA_HOME` — user data directory (defaults to `~/.local/share`)
+//! - `$XDG_CONFIG_HOME` — user config directory (defaults to `~/.config`)
+//! - `$XDG_BIN_HOME` — user bin directory (defaults to `~/.local/bin`)
+//!
+//! These variables are automatically expanded in target paths.
+
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
+/// Possible errors when working with symlists
 #[derive(Debug, Error)]
 pub enum SymlistError {
-    #[error("Ошибка ввода-вывода: {0}")]
+    /// Input/output error
+    #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
 
-    #[error("Ошибка парсинга RON: {0}")]
+    /// RON parsing error
+    #[error("RON parse error: {0}")]
     Ron(#[from] ron::error::SpannedError),
 }
 
+/// Entry in the symlink list
 #[derive(Debug, Deserialize)]
 pub struct SymlinkEntry {
+    /// Relative path inside the package
     pub source: String,
+    /// Target path (with variables)
     pub target: String,
 }
 
+/// Expands variables (`$HOME`, `$XDG_*`) in paths
 fn expand_vars(path: &str) -> PathBuf {
     let mut vars = HashMap::new();
 
@@ -49,11 +84,22 @@ fn expand_vars(path: &str) -> PathBuf {
     PathBuf::from(expanded)
 }
 
+/// Saves a symlist template (`symlist.ron`)
+///
+/// Useful for package initialization or project bootstrapping.
+///
+/// # Example
+/// ```no_run
+/// use uhpm::symlist::save_template;
+/// use std::path::Path;
+///
+/// save_template(Path::new("symlist.ron")).unwrap();
+/// ```
 pub fn save_template(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let symlist_template = r#"[
     (
-        source: "bin/my_binary",          // путь внутри пакета
-        target: "$HOME/.local/bin/my_binary", // путь назначения
+        source: "bin/my_binary",          // path inside the package
+        target: "$HOME/.local/bin/my_binary", // target path
     ),
     (
         source: "share/applications/my_app.desktop",
@@ -65,6 +111,27 @@ pub fn save_template(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
+/// Loads a symlink list from `symlist.ron`
+///
+/// - `path` — path to the symlist file
+/// - `package_root` — root directory of the package
+///
+/// Returns a vector of `(source_path, target_path)`.
+///
+/// # Errors
+/// - [`SymlistError::Io`] — if the file cannot be read
+/// - [`SymlistError::Ron`] — if the file has an invalid format
+///
+/// # Example
+/// ```no_run
+/// use uhpm::symlist::load_symlist;
+/// use std::path::Path;
+///
+/// let symlinks = load_symlist(Path::new("symlist.ron"), Path::new("/tmp/pkg_root")).unwrap();
+/// for (src, dst) in symlinks {
+///     println!("{} -> {}", src.display(), dst.display());
+/// }
+/// ```
 pub fn load_symlist(
     path: &Path,
     package_root: &Path,
