@@ -64,7 +64,7 @@ enum Commands {
     /// containing all package files and metadata.
     Pack {
         /// Directory containing package files to archive
-        #[arg(short, long)]
+        #[arg(value_name = "PATH")]
         package_dir: PathBuf,
         /// Output directory for the created package archive
         #[arg(short, long)]

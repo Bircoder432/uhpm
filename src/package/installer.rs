@@ -28,8 +28,10 @@ use crate::db::PackageDB;
 use crate::package::Package;
 use crate::symlist;
 use crate::{debug, info, warn};
+use flate2::read::GzDecoder;
 use std::fs;
 use std::path::{Path, PathBuf};
+use tar::Archive;
 
 /// Errors that can occur during package installation
 #[derive(Debug)]
@@ -257,5 +259,126 @@ fn unpack(pkg_path: &Path) -> Result<PathBuf, std::io::Error> {
     archive.unpack(&unpack_dir)?;
 
     debug!("installer.unpack.done", unpack_dir.display());
+    Ok(unpack_dir)
+}
+
+pub async fn install_at(
+    pkg_path: &Path,
+    db: &PackageDB,
+    uhpm_root: &Path,
+) -> Result<(), crate::package::installer::InstallError> {
+    info!("installer.install_at.starting", pkg_path.display());
+
+    let unpacked = unpack_at(pkg_path, uhpm_root)?;
+    debug!("installer.install_at.unpacked", unpacked.display());
+
+    let meta_path = unpacked.join("uhp.ron");
+    debug!("installer.install_at.reading_meta", meta_path.display());
+    let package_meta: Package = crate::package::meta_parser(&meta_path)?;
+    info!(
+        "installer.install_at.package_info",
+        package_meta.name(),
+        package_meta.version()
+    );
+
+    let pkg_name = package_meta.name();
+    let version = package_meta.version();
+
+    let already_installed = db.is_installed(pkg_name).await.unwrap();
+    if let Some(installed_version) = &already_installed {
+        info!(
+            "installer.install_at.already_installed",
+            pkg_name, installed_version
+        );
+        if installed_version == version {
+            info!("installer.install_at.same_version_skipped");
+            return Ok(());
+        }
+    }
+
+    let package_root = uhpm_root
+        .join("packages")
+        .join(format!("{}-{}", pkg_name, version));
+    debug!("installer.install_at.package_root", package_root.display());
+
+    if package_root.exists() {
+        debug!(
+            "installer.install_at.removing_existing",
+            package_root.display()
+        );
+        fs::remove_dir_all(&package_root)?;
+    }
+    fs::create_dir_all(&package_root)?;
+    debug!("installer.install_at.created_dir", package_root.display());
+
+    fs::rename(&unpacked, &package_root)?;
+    debug!("installer.install_at.moved_package", package_root.display());
+
+    let mut installed_files = Vec::new();
+    match already_installed {
+        None => {
+            info!("installer.install_at.creating_symlinks");
+            installed_files = crate::package::installer::create_symlinks(&package_root)?;
+        }
+        Some(_) => {
+            info!("installer.install_at.updating_version");
+        }
+    }
+
+    let installed_files_str: Vec<String> = installed_files
+        .iter()
+        .map(|p| p.to_string_lossy().to_string())
+        .collect();
+    info!(
+        "installer.install_at.adding_to_db",
+        pkg_name,
+        installed_files_str.len()
+    );
+    db.add_package_full(&package_meta, &installed_files_str)
+        .await
+        .unwrap();
+    db.set_current_version(&package_meta.name(), &package_meta.version().to_string())
+        .await
+        .unwrap();
+
+    info!("installer.install_at.success", pkg_name);
+    Ok(())
+}
+
+/// Распаковка пакета в указанную директорию UHPM
+pub fn unpack_at(pkg_path: &Path, uhpm_root: &Path) -> Result<PathBuf, std::io::Error> {
+    if pkg_path.extension().and_then(|s| s.to_str()) != Some("uhp") {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "Package must have .uhp extension",
+        ));
+    }
+
+    let tmp_dir = uhpm_root.join("tmp");
+    fs::create_dir_all(&tmp_dir)?;
+
+    let package_name = pkg_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("unknown_package");
+    let unpack_dir = tmp_dir.join(package_name);
+
+    if unpack_dir.exists() {
+        fs::remove_dir_all(&unpack_dir)?;
+    }
+    fs::create_dir_all(&unpack_dir)?;
+
+    debug!(
+        "installer.unpack_at.unpacking",
+        pkg_path.display(),
+        unpack_dir.display()
+    );
+
+    let tar_gz = fs::File::open(pkg_path)?;
+    let decompressor = GzDecoder::new(tar_gz);
+    let mut archive = Archive::new(decompressor);
+    archive.unpack(&unpack_dir)?;
+
+    debug!("installer.unpack_at.done", unpack_dir.display());
     Ok(unpack_dir)
 }

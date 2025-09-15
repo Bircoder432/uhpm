@@ -81,11 +81,18 @@ pub async fn switch_version(
     target_version: Version,
     db: &PackageDB,
 ) -> Result<(), SwitchError> {
+    // Get home directory safely
+    let home_dir = dirs::home_dir().ok_or_else(|| {
+        SwitchError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "HOME directory not found",
+        ))
+    })?;
+
     // Remove symlinks from the current version if available
     if let Some(current_package) = db.get_current_package(pkg_name).await? {
         let current_version_str = current_package.version().to_string();
-        let current_pkg_dir = dirs::home_dir()
-            .unwrap()
+        let current_pkg_dir = home_dir
             .join(".uhpm/packages")
             .join(format!("{}-{}", pkg_name, current_version_str));
 
@@ -159,8 +166,7 @@ pub async fn switch_version(
     }
 
     // Verify target package directory exists
-    let new_pkg_dir = dirs::home_dir()
-        .unwrap()
+    let new_pkg_dir = home_dir
         .join(".uhpm/packages")
         .join(format!("{}-{}", pkg_name, target_version));
 

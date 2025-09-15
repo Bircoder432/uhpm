@@ -7,26 +7,41 @@ if ! command -v cargo &> /dev/null; then
     exit 1
 fi
 
-# Create necessary directories
+# Define directories
 UHPM_DIR="$HOME/.uhpm"
 PACKAGES_DIR="$UHPM_DIR/packages"
 TMP_DIR="$UHPM_DIR/tmp"
+LOCALE_SRC="locale"
+LOCALE_DST="$UHPM_DIR/locale"
+BIN_DIR="$HOME/.local/bin"
 
-mkdir -p "$PACKAGES_DIR" "$TMP_DIR"
+# Create necessary directories
+mkdir -p "$PACKAGES_DIR" "$TMP_DIR" "$BIN_DIR"
 
 # Build the project
 echo "Building UHPM and utilities..."
 cargo build --release
 
-# Install binaries
-BIN_DIR="$HOME/.local/bin"
-mkdir -p "$BIN_DIR"
+# Install or update binaries
+for bin in uhpm uhpmk uhprepo; do
+    SRC="target/release/$bin"
+    DST="$BIN_DIR/$bin"
 
-echo "Installing binaries to $BIN_DIR..."
-cp target/release/uhpm "$BIN_DIR/"
-cp target/release/uhpmk "$BIN_DIR/"
-if [ -f target/release/uhprepo ]; then
-    cp target/release/uhprepo "$BIN_DIR/"
+    if [ -f "$SRC" ]; then
+        if [ -f "$DST" ]; then
+            echo "Updating $bin..."
+        else
+            echo "Installing $bin..."
+        fi
+        cp "$SRC" "$DST"
+    fi
+done
+
+# Copy locale folder to ~/.uhpm/locale
+if [ -d "$LOCALE_SRC" ]; then
+    echo "Copying locale files to $LOCALE_DST..."
+    mkdir -p "$LOCALE_DST"
+    cp -r "$LOCALE_SRC/"* "$LOCALE_DST/"
 fi
 
 # Generate shell completions

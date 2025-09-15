@@ -1,6 +1,6 @@
 [package]
 name = "uhpm"
-version = "0.1.0"
+version = "0.0.1alpha"
 edition = "2024"
 default-run = "uhpm"
 
@@ -50,3 +50,10 @@ unic-langid = "0.9.6"
 walkdir = "2.5.0"
 [dev-dependencies]
 tempfile = "3.21.0"
+
+
+[features]
+dev = []
+
+[package.metadata.dev]
+features = ["dev"]

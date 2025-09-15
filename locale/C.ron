@@ -1,0 +1,284 @@
+// C.ron - English localization for UHPM
+
+(
+    main: (
+        debug: (
+            using_package_db: "Using package database",
+            db_path_is: "Database path is: {}",
+        ),
+        info: (
+            uhpm_started: "UHPM started",
+        ),
+    ),
+
+    installer: (
+        install: (
+            starting: "Starting installation of package: {}",
+            unpacked: "Archive unpacked into {}",
+            reading_meta: "Reading metadata from {}",
+            package_info: "Package: {} version {}",
+            already_installed: "Package {} is already installed with version {}",
+            same_version_skipped: "Same version detected — skipping installation",
+            package_root: "Package root path: {}",
+            removing_existing: "Removing existing package directory: {}",
+            created_dir: "Package directory created: {}",
+            moved_package: "Package moved to {}",
+            creating_symlinks: "Creating symlinks for new package",
+            updating_version: "Updating package version — symlinks not recreated",
+            adding_to_db: "Adding package {} to database with {} files",
+            success: "Package {} installed successfully",
+        ),
+
+        symlinks: (
+            loading: "Loading symlist from {}",
+            processing: "Processing symlink: {} -> {}",
+            src_not_found: "Source file not found: {}",
+            created_parent: "Created directory for symlink: {}",
+            removed_existing: "Removed existing symlink: {}",
+            created_link: "Symlink created: {} -> {}",
+            load_failed: "Failed to load symlist: {:?}",
+            total_created: "Created {} symlinks",
+        ),
+
+        unpack: (
+            unpacking: "Unpacking {} into {}",
+            done: "Unpacked into {}",
+        ),
+    ),
+
+    uhpmk: (
+        init: (
+            uhp_ron_created: "Template uhp.ron created at {}",
+            symlist_created: "Template symlist.ron created at {}",
+        ),
+        pack: (
+            meta_not_found: "uhp.ron not found in {}",
+            package_packed: "Package packed into {}",
+        ),
+    ),
+
+    uhpm: (
+        remove: (
+            pkg_not_found_db: "Package '{}' not found in the database",
+            attempting_remove: "Attempting to remove package: {}-{}",
+            pkg_dir_removed: "Removed package directory: {}",
+            pkg_dir_not_found: "Package directory '{}' not found: {}",
+            file_removed: "Removed: {}",
+            pkg_entry_removed: "Package '{}' entry removed from database",
+        ),
+    ),
+
+    package: (
+        switcher: (
+            remove_symlink_failed: "Failed to remove symlink {}: {}",
+            removed_old_symlink: "Removed old symlink: {}",
+            skipping_symlink_wrong_target: "Skipping {} — symlink points elsewhere (expected: {}, actual: {})",
+            read_symlink_failed: "Failed to read symlink target {}: {}",
+            skipping_not_symlink: "Skipping {} — not a symlink.",
+            metadata_failed: "Failed to get metadata for {}: {}",
+            symlist_not_found_cleanup_skip: "symlist.ron for current version not found — skipping symlink cleanup",
+            package_dir_not_found_cleanup_skip: "Current package directory not found ({}), skipping symlink cleanup",
+            no_current_version_cleanup_skip: "No current version recorded in database — skipping symlink cleanup",
+            switch_success: "Package '{}' switched to version {} (symlinks updated).",
+        ),
+
+        updater: (
+            package_not_installed: "Package {} is not installed",
+            installed_version: "Installed version of {}: {}",
+            repo_db_not_found: "Repository database {} not found, skipping",
+            new_version_found: "New version of {} found: {}",
+            update_success: "Package {} updated successfully",
+            already_up_to_date: "Package {} is already up to date",
+        ),
+    ),
+
+    cli: (
+        install: (
+            from_file: "Installing package from file: {}",
+            repo_db_not_found: "Repository database {} not found, skipping",
+            package_not_found: "Package {} not found in any repository",
+            downloading: "Downloading and installing package {}...",
+            no_file_or_package: "Neither file nor package name specified for installation",
+        ),
+
+        remove: (
+            no_packages: "No packages specified for removal",
+            removing: "Removing package: {}",
+            failed: "Failed to remove {}: {:?}",
+        ),
+
+        list: (
+            no_packages: "No installed packages",
+            installed_packages: "Installed packages:",
+            package_format: " - {} {} {}",
+        ),
+
+        update: (
+            success_or_up_to_date: "Package '{}' updated or already up to date",
+            not_installed: "Package '{}' is not installed",
+            error: "Error updating package '{}': {:?}",
+        ),
+
+        switch: (
+            invalid_format: "Invalid format '{}'. Use: name@version",
+            switching: "Switching package '{}' to version {}...",
+            success: "Package '{}' successfully switched to {}",
+            error: "Error switching version: {:?}",
+            invalid_version: "Invalid version format '{}': {}",
+        ),
+    ),
+
+    db: (
+        new: (
+            creating: "Creating PackageDB at {:?}",
+            file_created: "New database file created at {:?}",
+        ),
+
+        init: (
+            connecting: "Connecting to database: {}",
+            ensuring_tables: "Ensuring required tables exist",
+            success: "Database initialized at {:?}",
+        ),
+
+        add_package: (
+            adding: "Adding package {} version {}",
+            added: "Package {} added",
+        ),
+
+        add_package_full: (
+            adding: "Adding package {} version {} with {} files",
+            adding_dependency: "Adding dependency {} -> {}",
+            adding_file: "Adding installed file: {}",
+            success: "Package {} successfully added",
+        ),
+
+        get_installed_files: (
+            fetching: "Fetching installed files for {}",
+            found: "Found {} files for package {}",
+        ),
+
+        remove_package: (
+            removing: "Removing package {} from database",
+            removed: "Package {} removed",
+        ),
+
+        get_package_version: (
+            fetching: "Fetching current version of {}",
+            result: "Current version of {}: {:?}",
+        ),
+
+        list_packages: (
+            listing: "Listing all packages",
+            found: "Found package: {} {} (current={})",
+        ),
+
+        is_installed: (
+            checking: "Checking if {} is installed",
+            latest_version: "Latest version of {}: {}",
+            not_found: "Package {} not found",
+        ),
+
+        get_current_package: (
+            fetching: "Fetching current package {}",
+            not_found: "Package {} not found",
+            retrieved: "Retrieved package: {:?}",
+        ),
+
+        set_current_version: (
+            setting: "Setting {} as current version for {}",
+            success: "{} is now current for {}",
+        ),
+
+        get_package_by_version: (
+            fetching: "Fetching package {} version {}",
+            not_found: "Package {} version {} not found",
+            retrieved: "Retrieved package: {:?}",
+        ),
+    ),
+
+    fetcher: (
+        download: (
+            failed: "Failed to download {}: {}",
+        ),
+        install: (
+            from_url: "Installing package from {}...",
+        ),
+    ),
+
+    test: (
+        installer: (
+            tmp_dir: "TMP_DIR = {:?}",
+            home_redirected: "HOME redirected to {:?}",
+            binary_created: "Binary created: {:?}",
+            ron_generated: "Generated uhp.ron:\n{}",
+            symlist_generated: "Generated symlist.ron:\n{}",
+            archive_creation: "Archive will be created at {:?}",
+            archive_created: "Archive created: {:?}",
+            db_creation: "Database will be created at {:?}",
+            installation_start: "Starting package installation",
+            installation_complete: "Package installation completed",
+            package_version: "Package version after installation: {:?}",
+            installed_files: "Installed files: {:?}",
+            file_added_to_archive: "File added to archive: {:?}",
+        ),
+
+        remover_test: (
+            setup_tmp_dir: "Setting up temporary directory: {}",
+            created_pkg_dir: "Created package directory: {}",
+            created_binary: "Created binary file: {}",
+            created_meta: "Created metadata file: {}",
+            created_symlist: "Created symlist file: {}",
+            created_target_dir: "Created target directory for symlinks",
+            db_initialized: "Database initialized: {}",
+            archive_created: "Package archive created: {}",
+            package_installed: "Package installed successfully",
+            installation_verified: "Package installation verified",
+            removal_successful: "Package removal completed successfully",
+            db_entry_removed: "Database entry removed",
+            symlink_removed: "Symlink removed",
+            pkg_dir_removed: "Package directory removed",
+            setup_tmp_dir_nonexistent: "Setting up temporary directory for nonexistent test: {}",
+            db_initialized_nonexistent: "Database initialized for nonexistent test: {}",
+            nonexistent_removal_ok: "Non-existent package removal handled correctly",
+            setup_tmp_dir_missing: "Setting up temporary directory for missing dir test: {}",
+            db_initialized_missing: "Database initialized for missing dir test: {}",
+            package_added_to_db: "Package added to database",
+            missing_dir_removal_ok: "Missing directory removal handled correctly",
+            db_entry_removed_missing: "Database entry removed for missing directory case",
+        ),
+
+        switcher_test: (
+            setup_tmp_dir: "Setting up temporary directory for switcher test: {}",
+            created_pkg_dir: "Created package directory: {}",
+            created_binary: "Created binary file: {}",
+            created_meta: "Created metadata file: {}",
+            created_symlist: "Created symlist file: {}",
+            created_target_dir: "Created target directory for symlinks",
+            db_initialized: "Database initialized: {}",
+            archive_created: "Package archive created: {}",
+            package_installed: "Package installed: {}",
+            initial_version_set: "Initial version set to 1.0.0",
+            initial_version_verified: "Initial version verified",
+            switch_successful: "Version switch completed successfully",
+            version_switched_verified: "Version switch verified in database",
+            symlink_updated: "Symlink updated to point to new version",
+            setup_tmp_dir_nonexistent: "Setting up temporary directory for nonexistent test: {}",
+            db_initialized_nonexistent: "Database initialized for nonexistent test: {}",
+            nonexistent_switch_failed: "Switch failed correctly for non-existent package",
+            setup_tmp_dir_missing: "Setting up temporary directory for missing target test: {}",
+            db_initialized_missing: "Database initialized for missing target test: {}",
+            package_installed_missing: "Package installed for missing target test",
+            missing_target_switch_failed: "Switch failed correctly for missing target version",
+            initial_symlink_verified: "Initial symlink verified to point to version 1.0.0",
+            package_1_installed: "Package version 1.0.0 installed",
+            package_2_installed: "Package version 2.0.0 installed",
+            symlink_exists: "Symlink exists: {}",
+            symlink_target: "Symlink target: {}",
+            symlink_read_error: "Error reading symlink: {}",
+            symlink_not_found: "Symlink not found before switching",
+            symlink_exists_after: "Symlink exists after switching: {}",
+            symlink_target_after: "Symlink target after switching: {}",
+            symlink_read_error_after: "Error reading symlink after switching: {}",
+        ),
+    ),
+)

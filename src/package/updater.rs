@@ -2,20 +2,13 @@
 //!
 //! This module provides functionality to check for and install newer versions
 //! of installed packages from configured repositories.
-//!
-//! ## Responsibilities
-//! - Determine the currently installed version of a package.
-//! - Parse the repository configuration (`repos.ron`).
-//! - Query repositories to find the latest available version.
-//! - Download and install the newer version if available.
-//!
-//! Errors are unified under [`UpdaterError`] for consistency.
 
 use crate::db::PackageDB;
 use crate::fetcher;
 use crate::repo::{RepoDB, RepoError, parse_repos};
 use crate::{error, info, warn};
 use semver::Version;
+use std::path::Path;
 
 /// Errors that may occur during package update.
 #[derive(thiserror::Error, Debug)]
@@ -39,39 +32,17 @@ pub enum UpdaterError {
     /// Error during fetch or installation of the new package.
     #[error("Fetch error: {0}")]
     Fetch(#[from] crate::fetcher::FetchError),
+
+    /// No newer version available
+    #[error("No newer version available for package: {0}")]
+    NoNewVersion(String),
 }
 
-/// Update a package to the latest version available in repositories.
-///
-/// # Arguments
-/// - `pkg_name`: Name of the package to update.
-/// - `package_db`: Reference to the [`PackageDB`] instance.
-///
-/// # Workflow
-/// 1. Look up the currently installed version in the database.
-///    - If the package is not installed, return [`UpdaterError::NotFound`].
-/// 2. Parse the repository configuration (`~/.uhpm/repos.ron`).
-/// 3. For each repository:
-///    - Open its `packages.db`.
-///    - Check if a newer version of the package exists.
-///    - Track the highest available version and its download URL.
-/// 4. If a newer version is found:
-///    - Download and install it via [`fetcher::fetch_and_install_parallel`].
-///    - Log the update success.
-/// 5. If no newer version is found:
-///    - Log that the package is up to date.
-///
-/// # Errors
-/// Returns [`UpdaterError`] if:
-/// - The package is not installed.
-/// - Repository parsing or database queries fail.
-/// - Filesystem or network operations fail.
-/// - Installation of the new version fails.
-///
-/// # Logging
-/// - Logs the installed version and the found latest version.
-/// - Logs update progress and success/failure.
-pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<(), UpdaterError> {
+/// Check for updates and return download URL if newer version exists
+pub async fn check_for_update(
+    pkg_name: &str,
+    package_db: &PackageDB,
+) -> Result<String, UpdaterError> {
     // Step 1: check installed version
     let installed_version = package_db.get_package_version(pkg_name).await?;
     if installed_version.is_none() {
@@ -120,18 +91,35 @@ pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<()
         }
     }
 
-    // Step 4: install update if available
-    if let Some(url) = latest_url {
-        info!(
-            "package.updater.new_version_found",
-            pkg_name,
-            latest_version.unwrap()
-        );
-        fetcher::fetch_and_install_parallel(&[url], package_db).await?;
-        info!("package.updater.update_success", pkg_name);
-    } else {
-        info!("package.updater.already_up_to_date", pkg_name);
-    }
+    // Return URL if newer version found
+    latest_url.ok_or_else(|| UpdaterError::NoNewVersion(pkg_name.to_string()))
+}
+
+/// Update package from local file
+pub async fn update_from_file(pkg_path: &Path, package_db: &PackageDB) -> Result<(), UpdaterError> {
+    info!("package.updater.updating_from_file", pkg_path.display());
+
+    // Convert Path to string URL for fetcher
+    let url = format!("file://{}", pkg_path.display());
+
+    // Фетчер сам должен уметь извлекать имя пакета из метаданных
+    fetcher::fetch_and_install_parallel(&[url], package_db).await?;
+
+    info!(
+        "package.updater.update_from_file_success",
+        pkg_path.display()
+    );
+    Ok(())
+}
+
+/// Update a package to the latest version available in repositories.
+pub async fn update_package(pkg_name: &str, package_db: &PackageDB) -> Result<(), UpdaterError> {
+    // Check for updates
+    let download_url = check_for_update(pkg_name, package_db).await?;
+
+    // Download and install
+    fetcher::fetch_and_install_parallel(&[download_url], package_db).await?;
+    info!("package.updater.update_success", pkg_name);
 
     Ok(())
 }

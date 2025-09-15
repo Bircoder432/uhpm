@@ -84,8 +84,11 @@ pub enum Commands {
 
     /// Update a package to the latest available version.
     Update {
+        #[arg(short, long)]
+        file: Option<PathBuf>,
         /// Name of the package to update.
-        package: String,
+        #[arg(value_name = "PACKAGE")]
+        packages: Vec<String>,
     },
 
     /// Switch active version of a package.
@@ -203,15 +206,22 @@ impl Cli {
                 }
             }
 
-            Commands::Update { package } => {
-                let updater_result = updater::update_package(package, db).await;
-                match updater_result {
-                    Ok(_) => info!("cli.update.success_or_up_to_date", package),
-                    Err(updater::UpdaterError::NotFound(_)) => {
-                        lprintln!("cli.update.not_installed", package);
-                    }
-                    Err(e) => {
-                        error!("cli.update.error", package, e);
+            Commands::Update { file, packages } => {
+                if let Some(path) = file {
+                    info!("cli.install.from_file", path.display());
+                    updater::update_from_file(path, db).await.unwrap();
+                    return Ok(());
+                }
+                for package in packages {
+                    let updater_result = updater::update_package(package, db).await;
+                    match updater_result {
+                        Ok(_) => info!("cli.update.success_or_up_to_date", package),
+                        Err(updater::UpdaterError::NotFound(_)) => {
+                            lprintln!("cli.update.not_installed", package);
+                        }
+                        Err(e) => {
+                            error!("cli.update.error", package, e);
+                        }
                     }
                 }
             }
