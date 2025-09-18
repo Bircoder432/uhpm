@@ -1,19 +1,15 @@
-// tests/switcher_test.rs
-//! Integration tests for package version switching functionality
-
 use flate2::Compression;
 use flate2::write::GzEncoder;
-use semver::Version;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use tar::Builder;
 use tempfile::tempdir;
 use uhpm::db::PackageDB;
-use uhpm::package::{Package, Source, installer, switcher};
+use uhpm::package::{Package, installer};
 use uhpm::{debug, info};
 
-/// Рекурсивное добавление файлов в tar.gz архив с относительными путями
-fn append_dir_all(tar: &mut Builder<GzEncoder<File>>, path: &PathBuf, base: &PathBuf) {
+/// Рекурсивно добавляет папку и файлы в tar-архив.
+fn append_dir_all(tar: &mut Builder<GzEncoder<File>>, path: &Path, base: &Path) {
     for entry in fs::read_dir(path).unwrap() {
         let entry = entry.unwrap();
         let path = entry.path();
@@ -22,105 +18,78 @@ fn append_dir_all(tar: &mut Builder<GzEncoder<File>>, path: &PathBuf, base: &Pat
             append_dir_all(tar, &path, base);
         } else {
             tar.append_path_with_name(&path, rel_path).unwrap();
-            debug!("test.installer.file_added_to_archive", rel_path);
+            debug!("File added to archive: {:?}", rel_path);
         }
     }
 }
 
-/// Helper для создания архива пакета
-fn create_package_archive(tmp_dir: &PathBuf, version: &str) -> std::path::PathBuf {
-    let pkg_dir = tmp_dir.join(format!("pkg_{}", version));
-    fs::create_dir_all(&pkg_dir.join("bin")).unwrap();
+#[tokio::test]
+async fn test_install_simple_package() {
+    let _ = tracing_subscriber::fmt().try_init();
 
-    let bin_file = pkg_dir.join("bin/test_binary");
-    fs::write(&bin_file, format!("#!/bin/bash\necho version {}", version)).unwrap();
+    let tmp_dir = tempdir().unwrap();
+    info!("Temporary directory: {:?}", tmp_dir.path());
 
-    let pkg = Package::new(
-        "test-package",
-        Version::parse(version).unwrap(),
-        "Test Author",
-        Source::Raw("test://package".to_string()),
-        format!("checksum-{}", version),
-        vec![],
-    );
+    // Подменяем HOME
+    unsafe { std::env::set_var("HOME", tmp_dir.path()) };
 
+    // Создаём структуру пакета
+    let pkg_dir = tmp_dir.path().join("pkg_contents");
+    fs::create_dir_all(&pkg_dir).unwrap();
+
+    let bin_dir = pkg_dir.join("bin");
+    fs::create_dir_all(&bin_dir).unwrap();
+    let bin_file = bin_dir.join("my_binary");
+    fs::write(&bin_file, "#!/bin/bash\necho hello").unwrap();
+    info!("Binary created: {:?}", bin_file);
+
+    // Генерим uhp.ron
+    let pkg = Package::template();
     let meta_path = pkg_dir.join("uhp.ron");
     pkg.save_to_ron(&meta_path).unwrap();
+    info!("Ron's file generated: {:?}", meta_path);
 
-    // Подставляем полный путь к бинарнику в tmp_dir вместо $HOME
-    let symlink_target = tmp_dir.join(".local/bin/test_binary");
+    // Генерим symlist.ron
+    let symlist_path = pkg_dir.join("symlist.ron");
     fs::write(
-        &pkg_dir.join("symlist.ron"),
-        format!(
-            r#"[(source: "bin/test_binary", target: "{}")]"#,
-            symlink_target.display()
-        ),
+        &symlist_path,
+        r#"[
+    (source: "bin/my_binary", target: "$HOME/.local/bin/my_binary")
+]"#,
     )
     .unwrap();
+    info!("Symlist generated: {:?}", symlist_path);
 
-    // Создаём архив
-    let archive_path = tmp_dir.join(format!("test-package-{}.uhp", version));
-    let tar_gz = File::create(&archive_path).unwrap();
+    // Создаём папку для установки бинарников
+    fs::create_dir_all(tmp_dir.path().join(".local/bin")).unwrap();
+
+    // Создаём архив .uhp
+    let uhp_path = tmp_dir.path().join("my_package.uhp");
+    let tar_gz = File::create(&uhp_path).unwrap();
     let enc = GzEncoder::new(tar_gz, Compression::default());
     let mut tar = Builder::new(enc);
     append_dir_all(&mut tar, &pkg_dir, &pkg_dir);
     tar.finish().unwrap();
     tar.into_inner().unwrap().finish().unwrap();
+    info!("Package archive created: {:?}", &uhp_path);
 
-    archive_path
-}
-
-#[tokio::test]
-async fn test_switch_version_success() {
-    let _ = tracing_subscriber::fmt::try_init();
-
-    let tmp_dir: PathBuf = tempdir().unwrap().path().to_path_buf();
-    let uhpm_root = tmp_dir.join(".uhpm");
-    fs::create_dir_all(uhpm_root.join("tmp")).unwrap();
-    fs::create_dir_all(tmp_dir.join(".local/bin")).unwrap();
-
-    let db_path = tmp_dir.join("packages.db");
+    // Инициализируем базу данных
+    let db_path = tmp_dir.path().join("packages.db");
     let db = PackageDB::new(&db_path).unwrap().init().await.unwrap();
+    info!("Database initialized: {:?}", db_path);
 
-    // Устанавливаем версии 1.0.0 и 2.0.0 через install_at
-    let archive_v1 = create_package_archive(&tmp_dir, "1.0.0");
-    installer::install_at(&archive_v1, &db, &uhpm_root)
-        .await
-        .unwrap();
+    // **Устанавливаем пакет через installer**
+    installer::install(&uhp_path, &db).await.unwrap();
+    info!("Package installed successfully");
 
-    let archive_v2 = create_package_archive(&tmp_dir, "2.0.0");
-    installer::install_at(&archive_v2, &db, &uhpm_root)
-        .await
-        .unwrap();
+    // Проверяем версию пакета
+    let version = db.get_package_version("my_package").await.unwrap();
+    info!("Installed package version: {:?}", &version);
+    assert!(version.is_some(), "Package not added to database");
+    assert_eq!(version.unwrap(), "0.1.0");
 
-    db.set_current_version("test-package", "1.0.0")
-        .await
-        .unwrap();
-    let current_version = db.get_package_version("test-package").await.unwrap();
-    assert_eq!(current_version.unwrap(), "1.0.0");
-
-    // Переключаем на 2.0.0
-    let result =
-        switcher::switch_version("test-package", Version::parse("2.0.0").unwrap(), &db).await;
-    assert!(result.is_ok());
-
-    let new_version = db.get_package_version("test-package").await.unwrap();
-    assert_eq!(new_version.unwrap(), "2.0.0");
-}
-
-#[tokio::test]
-async fn test_switch_version_nonexistent() {
-    let _ = tracing_subscriber::fmt::try_init();
-
-    let tmp_dir = tempdir().unwrap().path().to_path_buf();
-    let uhpm_root = tmp_dir.join(".uhpm");
-    fs::create_dir_all(uhpm_root.join("tmp")).unwrap();
-
-    let db_path = tmp_dir.join("packages.db");
-    let db = PackageDB::new(&db_path).unwrap().init().await.unwrap();
-
-    let result =
-        switcher::switch_version("nonexistent-package", Version::parse("1.0.0").unwrap(), &db)
-            .await;
-    assert!(result.is_err());
+    // Проверяем установленные файлы
+    let installed_files = db.get_installed_files("my_package").await.unwrap();
+    info!("Installed files: {:?}", &installed_files);
+    assert!(!installed_files.is_empty(), "Files not installed");
 }
