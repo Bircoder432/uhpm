@@ -63,6 +63,9 @@ pub struct RepoDB {
 }
 
 impl RepoDB {
+    pub fn pool(&self) -> &SqlitePool {
+        return &self.pool;
+    }
     /// Opens (or creates) a new repository database at the given path.
     ///
     /// Ensures required tables exist by calling [`RepoDB::init_tables`].

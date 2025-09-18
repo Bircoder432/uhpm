@@ -17,6 +17,7 @@
 //! - **Update**: Update a package to the latest available version.
 //! - **Switch**: Switch to a specific installed version of a package.
 //! - **SelfRemove**: Uninstall UHPM itself.
+//! - **Search**: Search for packages in repositories.
 
 use crate::db::PackageDB;
 use crate::fetcher;
@@ -99,6 +100,8 @@ pub enum Commands {
         #[arg(value_name = "PACKAGE@VERSION")]
         target: String,
     },
+
+    /// Search for packages in repositories.
 
     /// Generate shell completion scripts
     Completions {
@@ -255,6 +258,7 @@ impl Cli {
             Commands::SelfRemove => {
                 self_remove::self_remove()?;
             }
+
             Commands::Completions { shell } => {
                 match shell.to_lowercase().as_str() {
                     "bash" => generate(Bash, &mut Cli::command(), "uhpm", &mut io::stdout()),
