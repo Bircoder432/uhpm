@@ -26,10 +26,6 @@ fn append_dir_all(tar: &mut Builder<GzEncoder<File>>, path: &Path, base: &Path) 
             append_dir_all(tar, &path, base);
         } else {
             tar.append_path_with_name(&path, rel_path).unwrap();
-            debug!(
-                "test.switcher.append_dir_all.file_added_to_archive",
-                rel_path
-            );
         }
     }
 }
@@ -51,17 +47,9 @@ async fn test_install_simple_package() {
     let _ = tracing_subscriber::fmt().try_init();
 
     let tmp_dir = tempdir().unwrap();
-    info!(
-        "test.switcher.test_install_simple_package.tmp_dir",
-        tmp_dir.path()
-    );
 
     // Redirect HOME
     unsafe { std::env::set_var("HOME", tmp_dir.path()) };
-    info!(
-        "test.switcher.test_install_simple_package.home_redirected",
-        tmp_dir.path()
-    );
 
     // Create package structure
     let pkg_dir = tmp_dir.path().join("pkg_contents");
@@ -71,19 +59,11 @@ async fn test_install_simple_package() {
     fs::create_dir_all(&bin_dir).unwrap();
     let bin_file = bin_dir.join("my_binary");
     fs::write(&bin_file, "#!/bin/bash\necho hello").unwrap();
-    info!(
-        "test.switcher.test_install_simple_package.binary_created",
-        bin_file
-    );
 
     // Generate uhp.ron
     let pkg = Package::template();
     let meta_path = pkg_dir.join("uhp.ron");
     pkg.save_to_ron(&meta_path).unwrap();
-    info!(
-        "test.switcher.test_install_simple_package.ron_generated",
-        meta_path
-    );
 
     // Generate symlist.ron
     let symlist_path = pkg_dir.join("symlist.ron");
@@ -94,10 +74,6 @@ async fn test_install_simple_package() {
 ]"#,
     )
     .unwrap();
-    info!(
-        "test.switcher.test_install_simple_package.symlist_generated",
-        symlist_path
-    );
 
     // Create installation folder
     fs::create_dir_all(tmp_dir.path().join(".local/bin")).unwrap();
@@ -110,37 +86,22 @@ async fn test_install_simple_package() {
     append_dir_all(&mut tar, &pkg_dir, &pkg_dir);
     tar.finish().unwrap();
     tar.into_inner().unwrap().finish().unwrap();
-    info!(
-        "test.switcher.test_install_simple_package.archive_created",
-        &uhp_path
-    );
 
     // Initialize database
     let db_path = tmp_dir.path().join("packages.db");
     let db = PackageDB::new(&db_path).unwrap().init().await.unwrap();
-    info!(
-        "test.switcher.test_install_simple_package.db_initialized",
-        &db_path
-    );
 
     // Install package
     installer::install(&uhp_path, &db).await.unwrap();
-    info!("test.switcher.test_install_simple_package.installation_complete");
 
     // Verify version
     let version = db.get_package_version("my_package").await.unwrap();
-    info!(
-        "test.switcher.test_install_simple_package.package_version",
-        &version
-    );
+
     assert!(version.is_some(), "Package not added to database");
     assert_eq!(version.unwrap(), "0.1.0");
 
     // Verify installed files
     let installed_files = db.get_installed_files("my_package").await.unwrap();
-    info!(
-        "test.switcher.test_install_simple_package.installed_files",
-        &installed_files
-    );
+
     assert!(!installed_files.is_empty(), "Files not installed");
 }
