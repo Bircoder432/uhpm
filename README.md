@@ -96,7 +96,7 @@ cd uhpm
 
 ## Roadmap 🗺️
 
-- [-] Package repository support
+- [ ] Package repository support
 - [ ] Graphical interface
 - [ ] Multi-architecture and OS support
 
