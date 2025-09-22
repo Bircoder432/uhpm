@@ -32,30 +32,18 @@
 //! println!("Package {} v{}", pkg.name(), pkg.version());
 //! ```
 
-use ron::error::SpannedError;
+use crate::error::MetaParseError;
 use ron::from_str;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
-use thiserror::Error;
-
 pub mod installer;
 pub mod remover;
 pub mod switcher;
 pub mod updater;
 
 /// Errors that may occur while parsing package metadata.
-#[derive(Error, Debug)]
-pub enum MetaParseError {
-    /// Filesystem error.
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    /// Parsing error when reading a `.ron` file.
-    #[error("RON parse error: {0}")]
-    Ron(#[from] SpannedError),
-}
 
 /// Represents the source of a package.
 ///

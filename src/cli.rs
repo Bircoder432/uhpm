@@ -219,7 +219,7 @@ impl Cli {
                     let updater_result = updater::update_package(package, db).await;
                     match updater_result {
                         Ok(_) => info!("cli.update.success_or_up_to_date", package),
-                        Err(updater::UpdaterError::NotFound(_)) => {
+                        Err(crate::error::UpdaterError::NotFound(_)) => {
                             lprintln!("cli.update.not_installed", package);
                         }
                         Err(e) => {

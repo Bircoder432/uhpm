@@ -4,39 +4,14 @@
 //! of installed packages from configured repositories.
 
 use crate::db::PackageDB;
+use crate::error::UpdaterError;
 use crate::fetcher;
-use crate::repo::{RepoDB, RepoError, parse_repos};
+use crate::repo::{RepoDB, parse_repos};
 use crate::{error, info, warn};
 use semver::Version;
 use std::path::Path;
 
 /// Errors that may occur during package update.
-#[derive(thiserror::Error, Debug)]
-pub enum UpdaterError {
-    /// The package is not installed and therefore cannot be updated.
-    #[error("Package not found: {0}")]
-    NotFound(String),
-
-    /// Filesystem or I/O error.
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    /// Error while working with repository database or configuration.
-    #[error("Repo error: {0}")]
-    Repo(#[from] RepoError),
-
-    /// Database error from `sqlx`.
-    #[error("DB error: {0}")]
-    Db(#[from] sqlx::Error),
-
-    /// Error during fetch or installation of the new package.
-    #[error("Fetch error: {0}")]
-    Fetch(#[from] crate::fetcher::FetchError),
-
-    /// No newer version available
-    #[error("No newer version available for package: {0}")]
-    NoNewVersion(String),
-}
 
 /// Check for updates and return download URL if newer version exists
 pub async fn check_for_update(
@@ -58,7 +33,7 @@ pub async fn check_for_update(
 
     // Step 2: parse repository configuration
     let repos_path = dirs::home_dir().unwrap().join(".uhpm/repos.ron");
-    let repos = parse_repos(&repos_path)?;
+    let repos = parse_repos(&repos_path).unwrap();
 
     let mut latest_url = None;
     let mut latest_version: Option<Version> = None;
@@ -85,7 +60,7 @@ pub async fn check_for_update(
                 let inst_ver = Version::parse(&installed_version).unwrap_or(Version::new(0, 0, 0));
                 if ver > inst_ver {
                     latest_version = Some(ver);
-                    latest_url = Some(repo_db.get_package(&name, &ver_str).await?);
+                    latest_url = Some(repo_db.get_package(&name, &ver_str).await.unwrap());
                 }
             }
         }

@@ -32,28 +32,14 @@
 //! # });
 //! ```
 
+use crate::error::RepoError;
 use ron::from_str;
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::fs;
 use std::path::Path;
-use thiserror::Error;
 
 /// Errors that may occur while working with repositories.
-#[derive(Error, Debug)]
-pub enum RepoError {
-    /// Filesystem error.
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    /// SQLite error.
-    #[error("Database error: {0}")]
-    Db(#[from] sqlx::Error),
-
-    /// Package not found in the repository.
-    #[error("Package not found: {0}")]
-    NotFound(String),
-}
 
 /// SQLite-backed package repository database.
 ///

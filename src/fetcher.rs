@@ -36,32 +36,17 @@
 //! # });
 //! ```
 
+use crate::db::PackageDB;
+use crate::error::FetchError;
+use crate::package::installer;
 use crate::{error, info};
 use futures::stream::{FuturesUnordered, StreamExt};
 use indicatif::{ProgressBar, ProgressStyle};
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use thiserror::Error;
 use tokio::fs;
 
-use crate::db::PackageDB;
-use crate::package::installer;
-
 /// Errors that can occur during package fetching and installation.
-#[derive(Error, Debug)]
-pub enum FetchError {
-    /// HTTP or network-related error.
-    #[error("HTTP error: {0}")]
-    Http(#[from] reqwest::Error),
-
-    /// Filesystem I/O error.
-    #[error("IO error: {0}")]
-    Io(#[from] std::io::Error),
-
-    /// Error reported by the installer.
-    #[error("Installer error: {0}")]
-    Installer(String),
-}
 
 /// Downloads a single package from the given URL.
 ///
