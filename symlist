@@ -1,0 +1,12 @@
+# UHPM binaries
+bin/uhpm $HOME/.local/bin/uhpm
+bin/uhpmk $HOME/.local/bin/uhpmk
+
+# Locale files (RON format)
+locale/en.ron $HOME/.uhpm/locale/en.ron
+locale/ru.ron $HOME/.uhpm/locale/ru.ron
+
+# Shell completions
+completions/bash/uhpm.bash $HOME/.config/bash/completions/uhpm.bash
+completions/zsh/_uhpm $HOME/.config/zsh/completions/_uhpm
+completions/fish/uhpm.fish $HOME/.config/fish/completions/uhpm.fish

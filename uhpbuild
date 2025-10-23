@@ -1,0 +1,62 @@
+#!/bin/bash
+set -e
+
+# Build configuration
+CARGO_FLAGS="--release"
+BUILD_DIR="package"
+BIN_DIR="$BUILD_DIR/bin"
+LOCALE_DIR="$BUILD_DIR/locale"
+COMPLETIONS_DIR="$BUILD_DIR/completions"
+
+echo "Building UHPM tools..."
+
+# Create build directory structure
+mkdir -p "$BIN_DIR" "$LOCALE_DIR" "$COMPLETIONS_DIR/bash" "$COMPLETIONS_DIR/zsh" "$COMPLETIONS_DIR/fish"
+
+# Build the project
+echo "Compiling binaries..."
+cargo build $CARGO_FLAGS
+
+# Copy binaries
+echo "Copying binaries..."
+cp target/release/uhpm "$BIN_DIR/"
+cp target/release/uhpmk "$BIN_DIR/"
+
+# Copy locale files (RON format)
+echo "Copying locale files..."
+if [ -d "locale" ]; then
+    cp -r locale/* "$LOCALE_DIR/"
+    echo "Locale files copied:"
+    ls -la "$LOCALE_DIR/"
+else
+    echo "WARNING: locale directory not found"
+    # Create empty locale directory to avoid errors
+    mkdir -p "$LOCALE_DIR"
+fi
+
+# Generate shell completions
+echo "Generating shell completions..."
+
+# Bash completion
+"$BIN_DIR/uhpm" completions bash > "$COMPLETIONS_DIR/bash/uhpm.bash"
+
+# Zsh completion
+"$BIN_DIR/uhpm" completions zsh > "$COMPLETIONS_DIR/zsh/_uhpm"
+
+# Fish completion
+"$BIN_DIR/uhpm" completions fish > "$COMPLETIONS_DIR/fish/uhpm.fish"
+
+# Create package metadata
+echo "Creating package metadata..."
+cp uhp.toml "$BUILD_DIR/"
+cp symlist "$BUILD_DIR/"
+
+# Set executable permissions
+chmod +x "$BIN_DIR/uhpm" "$BIN_DIR/uhpmk"
+
+# Debug: show package structure
+echo "Package structure:"
+find "$BUILD_DIR" -type f -print
+
+echo "Build completed successfully!"
+echo "Package contents in: $BUILD_DIR/"

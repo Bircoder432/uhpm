@@ -51,9 +51,10 @@ pub mod updater;
 /// - A local file path
 /// - An inline/raw string
 #[derive(Serialize, Deserialize, Debug)]
+#[serde(tag = "type", content = "value")]
 pub enum Source {
     Url(String),
-    LocalPath(PathBuf),
+    LocalPath(String),
     Raw(String),
 }
 
@@ -64,7 +65,7 @@ impl Source {
     pub fn as_str(&self) -> &str {
         match self {
             Source::Url(s) | Source::Raw(s) => s,
-            Source::LocalPath(p) => p.to_str().unwrap_or_default(),
+            Source::LocalPath(p) => p,
         }
     }
 }
@@ -84,6 +85,7 @@ pub struct Package {
     version: Version,
     src: Source,
     checksum: String,
+    #[serde(default)]
     dependencies: Vec<Dependency>,
 }
 

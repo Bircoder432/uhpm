@@ -1,0 +1,8 @@
+name = "uhptools"
+author = "bircoder432"
+version = "0.0.1"
+checksum = "sha256:auto-generated"
+
+[src]
+type = "Raw"
+value = "built-from-source"

@@ -13,10 +13,10 @@
 //! ## Installation Process
 //!
 //! 1. **Extraction**: Package archive is extracted to temporary directory
-//! 2. **Metadata Parsing**: Package metadata is read from `uhp.ron` file
+//! 2. **Metadata Parsing**: Package metadata is read from `uhp.toml` file
 //! 3. **Version Check**: Verifies if package is already installed
 //! 4. **Directory Setup**: Creates package directory in UHPM home
-//! 5. **Symlink Creation**: Creates symbolic links based on `symlist.ron`
+//! 5. **Symlink Creation**: Creates symbolic links based on `symlist`
 //! 6. **Database Registration**: Records package info in package database
 //!
 //! ## Error Handling
@@ -65,7 +65,7 @@ impl From<crate::package::MetaParseError> for InstallError {
 ///
 /// # Process
 /// 1. Extracts package to temporary directory
-/// 2. Parses package metadata from `uhp.ron`
+/// 2. Parses package metadata from `uhp.toml`
 /// 3. Checks if package is already installed
 /// 4. Moves package to permanent location
 /// 5. Creates symbolic links for package files
@@ -159,7 +159,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
 /// `Result<Vec<PathBuf>, std::io::Error>` - List of created symlink paths or error
 ///
 /// # Process
-/// 1. Loads symlink configuration from `symlist.ron`
+/// 1. Loads symlink configuration from `symlist`
 /// 2. Creates parent directories for symlink targets
 /// 3. Removes existing files at target locations
 /// 4. Creates symbolic links from package files to target locations
@@ -272,7 +272,7 @@ pub async fn install_at(
     let unpacked = unpack_at(pkg_path, uhpm_root)?;
     debug!("installer.install_at.unpacked", unpacked.display());
 
-    let meta_path = unpacked.join("uhp.ron");
+    let meta_path = unpacked.join("uhp.toml"); // Исправлено: uhp.ron -> uhp.toml
     debug!("installer.install_at.reading_meta", meta_path.display());
     let package_meta: Package = crate::package::meta_parser(&meta_path)?;
     info!(
@@ -318,7 +318,7 @@ pub async fn install_at(
     match already_installed {
         None => {
             info!("installer.install_at.creating_symlinks");
-            installed_files = crate::package::installer::create_symlinks(&package_root)?;
+            installed_files = create_symlinks(&package_root)?;
         }
         Some(_) => {
             info!("installer.install_at.updating_version");
