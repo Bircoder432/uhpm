@@ -10,13 +10,7 @@
 - **Developer tools** - create and build packages 🛠️
 - **Autocompletion** - generate shell completion scripts 🐚
 
-## Installation 💻
 
-```bash
-git clone https://github.com/bircoder432/uhpm.git
-cd uhpm
-./install.sh
-```
 
 ## Quick Start 🚀
 
@@ -88,11 +82,7 @@ cargo build --release
 ```
 
 ### Development installation
-```bash
-git clone https://github.com/bircoder432/uhpm.git
-cd uhpm
-./install.sh
-```
+
 
 ## Roadmap 🗺️
 
