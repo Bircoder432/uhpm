@@ -6,7 +6,7 @@
 //!
 //! ## Subcommands
 //!
-//! - `init`: Creates template package metadata (`uhp.ron`) and symlink list (`symlist.ron`) files
+//! - `init`: Creates template package metadata (`uhp.toml`) and symlink list (`symlist`) files
 //! - `build`: Executes package build script (`uhpbuild`) and optionally packages the result
 //! - `pack`: Packages a directory containing package files into a compressed `.uhp` archive
 //!
@@ -63,7 +63,7 @@ struct Cli {
 enum Commands {
     /// Initialize a new package template
     ///
-    /// Creates template files for package metadata (uhp.ron) and symbolic link definitions (symlist.ron)
+    /// Creates template files for package metadata (uhp.toml) and symbolic link definitions (symlist)
     /// in the specified output directory or current working directory if not specified.
     Init {
         /// Output directory for template files
@@ -121,12 +121,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             // Create package metadata template
             let pkg = Package::template();
-            let out_path = out_dir.join("uhp.ron");
-            pkg.save_to_ron(&out_path)?;
-            info!("uhpmk.init.uhp_ron_created", out_path.display());
+            let out_path = out_dir.join("uhp.toml");
+            pkg.save_to_toml(&out_path)?;
+            info!("uhpmk.init.uhp_toml_created", out_path.display());
 
             // Create symlink list template
-            let symlist_path = out_dir.join("symlist.ron");
+            let symlist_path = out_dir.join("symlist");
             symlist::save_template(&symlist_path)?;
             info!("uhpmk.init.symlist_created", symlist_path.display());
         }
@@ -177,7 +177,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             info!("uhpmk.build.script_completed");
 
-            // If --make flag is set, package the result
+            // If --pack flag is set, package the result
             if pack {
                 let out_dir = out_dir.unwrap_or(std::env::current_dir()?);
                 let pkg_path = packer(package_dir.join("package"), out_dir)?;
@@ -199,8 +199,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             out_dir,
         } => {
             let out_dir = out_dir.unwrap_or(std::env::current_dir()?);
-
-            packer(package_dir, out_dir);
+            packer(package_dir, out_dir)?;
         }
     }
 
@@ -208,30 +207,37 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 fn packer(package_dir: PathBuf, out_dir: PathBuf) -> Result<PathBuf, PackerError> {
-    // let out_dir = out_dir.unwrap_or(std::env::current_dir()?);
-
     // Verify package metadata exists
-    let meta_path = package_dir.join("uhp.ron");
+    let meta_path = package_dir.join("uhp.toml");
     if !meta_path.exists() {
-        error!("uhpmk.pack.meta_not_found", package_dir.display());
-        // return Err(format!("uhp.ron not found in {}", package_dir.display()).into());
+        error!("uhpmk.pack.meta_not_found", meta_path.display());
+        return Err(PackerError::Io(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            format!("uhp.toml not found in {}", package_dir.display()),
+        )));
     }
 
     // Parse package metadata
-    let pkg: Package = meta_parser(&meta_path).unwrap();
+    let pkg: Package = meta_parser(&meta_path).map_err(|e| {
+        PackerError::Io(std::io::Error::new(
+            std::io::ErrorKind::InvalidData,
+            format!("Failed to parse package metadata: {}", e),
+        ))
+    })?;
 
     // Create package archive
     let filename = format!("{}-{}.uhp", pkg.name(), pkg.version());
-    let archive_path = out_dir.join(filename);
+    let archive_path = out_dir.join(&filename);
 
-    let tar_gz = File::create(&archive_path).unwrap();
+    let tar_gz = File::create(&archive_path).map_err(PackerError::Io)?;
     let enc = GzEncoder::new(tar_gz, Compression::default());
     let mut tar = Builder::new(enc);
 
     // Add all files from package directory to archive
-    tar.append_dir_all(".", &package_dir).unwrap();
-    tar.finish().unwrap();
+    tar.append_dir_all(".", &package_dir)
+        .map_err(PackerError::Io)?;
+    tar.finish().map_err(PackerError::Io)?;
 
-    return Ok(archive_path);
     info!("uhpmk.pack.package_packed", archive_path.display());
+    Ok(archive_path)
 }

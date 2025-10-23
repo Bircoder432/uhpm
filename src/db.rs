@@ -182,7 +182,7 @@ impl PackageDB {
         for (dep_name, dep_version) in pkg.dependencies() {
             debug!(
                 "db.add_package_full.adding_dependency",
-                dep_name, dep_version
+                &dep_name, &dep_version
             );
             sqlx::query(
                 "INSERT OR REPLACE INTO dependencies (package_name, dependency_name, dependency_version) VALUES (?, ?, ?)"

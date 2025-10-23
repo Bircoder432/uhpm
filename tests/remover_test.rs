@@ -39,14 +39,14 @@ async fn test_remove_package_success() {
         vec![],
     );
 
-    let meta_path = pkg_dir.join("uhp.ron");
-    pkg.save_to_ron(&meta_path).unwrap();
+    let meta_path = pkg_dir.join("uhp.toml");
+    pkg.save_to_toml(&meta_path).unwrap();
     info!("test.remover_test.created_meta", meta_path.display());
 
-    let symlist_path = pkg_dir.join("symlist.ron");
+    let symlist_path = pkg_dir.join("symlist");
     fs::write(
         &symlist_path,
-        r#"[(source: "bin/test_binary", target: "$HOME/.local/bin/test_binary")]"#,
+        "bin/test_binary $HOME/.local/bin/test_binary",
     )
     .unwrap();
     info!("test.remover_test.created_symlist", symlist_path.display());

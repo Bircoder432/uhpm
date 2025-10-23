@@ -6,7 +6,7 @@
 //! ## Responsibilities
 //! - Define the [`Package`] structure (name, version, author, source, checksum, dependencies).
 //! - Represent package sources via the [`Source`] enum.
-//! - Parse and serialize package metadata from/to `.ron` files.
+//! - Parse and serialize package metadata from/to `.toml` files.
 //! - Provide helper functions like [`meta_parser`] and [`get_pkg_path`].
 //!
 //! ## Submodules
@@ -33,7 +33,6 @@
 //! ```
 
 use crate::error::MetaParseError;
-use ron::from_str;
 use semver::Version;
 use serde::{Deserialize, Serialize};
 use std::fs;
@@ -70,6 +69,13 @@ impl Source {
     }
 }
 
+/// Represents a dependency with name and version
+#[derive(Serialize, Deserialize, Debug)]
+pub struct Dependency {
+    pub name: String,
+    pub version: Version,
+}
+
 /// Represents a UHPM package with its metadata and dependencies.
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Package {
@@ -78,7 +84,7 @@ pub struct Package {
     version: Version,
     src: Source,
     checksum: String,
-    dependencies: Vec<(String, Version)>,
+    dependencies: Vec<Dependency>,
 }
 
 impl Package {
@@ -91,13 +97,18 @@ impl Package {
         checksum: impl Into<String>,
         dependencies: Vec<(String, Version)>,
     ) -> Self {
+        let deps = dependencies
+            .into_iter()
+            .map(|(name, version)| Dependency { name, version })
+            .collect();
+
         Self {
             name: name.into(),
             version,
             author: author.into(),
             src,
             checksum: checksum.into(),
-            dependencies,
+            dependencies: deps,
         }
     }
 
@@ -127,14 +138,17 @@ impl Package {
     }
 
     /// Returns the package dependencies as a slice of `(name, version)` pairs.
-    pub fn dependencies(&self) -> &[(String, Version)] {
-        &self.dependencies
+    pub fn dependencies(&self) -> Vec<(String, Version)> {
+        self.dependencies
+            .iter()
+            .map(|dep| (dep.name.clone(), dep.version.clone()))
+            .collect()
     }
 
-    /// Loads a package definition from a `.ron` file.
-    pub fn from_ron_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
+    /// Loads a package definition from a `.toml` file.
+    pub fn from_toml_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let data = fs::read_to_string(path)?;
-        let pkg = from_str(&data)?;
+        let pkg: Package = toml::from_str(&data)?;
         Ok(pkg)
     }
 
@@ -150,22 +164,21 @@ impl Package {
         }
     }
 
-    /// Saves the package definition to a `.ron` file.
-    pub fn save_to_ron(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
-        let pretty = ron::ser::PrettyConfig::new();
-        let ron_str = ron::ser::to_string_pretty(self, pretty)?;
-        std::fs::write(path, ron_str)?;
+    /// Saves the package definition to a `.toml` file.
+    pub fn save_to_toml(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+        let toml_str = toml::to_string_pretty(self)?;
+        std::fs::write(path, toml_str)?;
         Ok(())
     }
 }
 
-/// Parses a `.ron` metadata file into a [`Package`].
+/// Parses a `.toml` metadata file into a [`Package`].
 ///
 /// # Errors
 /// Returns [`MetaParseError`] if the file cannot be read or parsed.
 pub fn meta_parser(meta_path: &Path) -> Result<Package, MetaParseError> {
     let data = fs::read_to_string(meta_path)?;
-    let pkg: Package = ron::from_str(&data)?;
+    let pkg: Package = toml::from_str(&data).unwrap();
     Ok(pkg)
 }
 
@@ -181,43 +194,78 @@ mod tests {
     use semver::Version;
     use std::fs;
 
-    fn sample_package_ron() -> String {
+    fn sample_package_toml() -> String {
         r#"
-            Package(
-                name: "test_pkg",
-                author: "Tester",
-                version: "0.1.0",
-                src: Raw("some content"),
-                checksum: "abc123",
-                dependencies: []
-            )
-            "#
+name = "test_pkg"
+author = "Tester"
+version = "0.1.0"
+checksum = "abc123"
+
+[src]
+Raw = "some content"
+
+[[dependencies]]
+name = "dep_pkg"
+version = "1.0.0"
+"#
         .to_string()
     }
 
     #[test]
-    fn test_from_ron_file() {
+    fn test_from_toml_file() {
         let tmp_dir = tempfile::tempdir().unwrap();
-        let ron_path = tmp_dir.path().join("uhp.ron");
-        fs::write(&ron_path, sample_package_ron()).unwrap();
+        let toml_path = tmp_dir.path().join("uhp.toml");
+        fs::write(&toml_path, sample_package_toml()).unwrap();
 
-        let pkg = Package::from_ron_file(&ron_path).unwrap();
+        let pkg = Package::from_toml_file(&toml_path).unwrap();
         assert_eq!(pkg.name(), "test_pkg");
         assert_eq!(pkg.author(), "Tester");
         assert_eq!(pkg.version(), &Version::parse("0.1.0").unwrap());
         assert_eq!(pkg.src().as_str(), "some content");
         assert_eq!(pkg.checksum(), "abc123");
-        assert!(pkg.dependencies().is_empty());
+        assert_eq!(pkg.dependencies().len(), 1);
+        assert_eq!(pkg.dependencies()[0].0, "dep_pkg");
+        assert_eq!(pkg.dependencies()[0].1, Version::parse("1.0.0").unwrap());
     }
 
     #[test]
     fn test_meta_parser() {
         let tmp_dir = tempfile::tempdir().unwrap();
-        let ron_path = tmp_dir.path().join("uhp.ron");
-        fs::write(&ron_path, sample_package_ron()).unwrap();
+        let toml_path = tmp_dir.path().join("uhp.toml");
+        fs::write(&toml_path, sample_package_toml()).unwrap();
 
-        let pkg = meta_parser(&ron_path).unwrap();
+        let pkg = meta_parser(&toml_path).unwrap();
         assert_eq!(pkg.name(), "test_pkg");
         assert_eq!(pkg.author(), "Tester");
+    }
+
+    #[test]
+    fn test_save_and_load_toml() {
+        let tmp_dir = tempfile::tempdir().unwrap();
+        let toml_path = tmp_dir.path().join("test_pkg.toml");
+
+        let original_pkg = Package::new(
+            "test_package",
+            Version::parse("1.2.3").unwrap(),
+            "Test Author",
+            Source::Url("https://example.com/pkg.uhp".to_string()),
+            "sha256:abc123",
+            vec![
+                ("dep1".to_string(), Version::parse("1.0.0").unwrap()),
+                ("dep2".to_string(), Version::parse("2.0.0").unwrap()),
+            ],
+        );
+
+        original_pkg.save_to_toml(&toml_path).unwrap();
+        let loaded_pkg = Package::from_toml_file(&toml_path).unwrap();
+
+        assert_eq!(original_pkg.name(), loaded_pkg.name());
+        assert_eq!(original_pkg.author(), loaded_pkg.author());
+        assert_eq!(original_pkg.version(), loaded_pkg.version());
+        assert_eq!(original_pkg.checksum(), loaded_pkg.checksum());
+        assert_eq!(
+            original_pkg.dependencies().len(),
+            loaded_pkg.dependencies().len()
+        );
     }
 }

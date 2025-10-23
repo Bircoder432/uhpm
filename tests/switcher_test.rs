@@ -34,7 +34,7 @@ fn append_dir_all(tar: &mut Builder<GzEncoder<File>>, path: &Path, base: &Path) 
 ///
 /// Steps performed:
 /// 1. Creates a temporary directory for HOME and package structure.
-/// 2. Generates `uhp.ron` and `symlist.ron`.
+/// 2. Generates `uhp.toml` and `symlist`.
 /// 3. Packs the package into a `.uhp` tar.gz archive.
 /// 4. Initializes an in-memory PackageDB.
 /// 5. Installs the package using `installer::install`.
@@ -60,20 +60,14 @@ async fn test_install_simple_package() {
     let bin_file = bin_dir.join("my_binary");
     fs::write(&bin_file, "#!/bin/bash\necho hello").unwrap();
 
-    // Generate uhp.ron
+    // Generate uhp.toml
     let pkg = Package::template();
-    let meta_path = pkg_dir.join("uhp.ron");
-    pkg.save_to_ron(&meta_path).unwrap();
+    let meta_path = pkg_dir.join("uhp.toml");
+    pkg.save_to_toml(&meta_path).unwrap();
 
-    // Generate symlist.ron
-    let symlist_path = pkg_dir.join("symlist.ron");
-    fs::write(
-        &symlist_path,
-        r#"[
-    (source: "bin/my_binary", target: "$HOME/.local/bin/my_binary")
-]"#,
-    )
-    .unwrap();
+    // Generate symlist
+    let symlist_path = pkg_dir.join("symlist");
+    fs::write(&symlist_path, "bin/my_binary $HOME/.local/bin/my_binary").unwrap();
 
     // Create installation folder
     fs::create_dir_all(tmp_dir.path().join(".local/bin")).unwrap();

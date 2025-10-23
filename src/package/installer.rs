@@ -76,7 +76,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
     let unpacked = unpack(pkg_path)?;
     debug!("installer.install.unpacked", unpacked.display());
 
-    let meta_path = unpacked.join("uhp.ron");
+    let meta_path = unpacked.join("uhp.toml");
     debug!("installer.install.reading_meta", meta_path.display());
     let package_meta: Package = crate::package::meta_parser(&meta_path)?;
     info!(
@@ -166,7 +166,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError
 pub fn create_symlinks(package_root: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut installed_files = Vec::new();
 
-    let symlist_path = package_root.join("symlist.ron");
+    let symlist_path = package_root.join("symlist");
     debug!("installer.symlinks.loading", symlist_path.display());
 
     match symlist::load_symlist(&symlist_path, &package_root) {

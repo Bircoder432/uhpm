@@ -46,6 +46,7 @@ tar = "0.4.44"
 thiserror = "2.0.16"
 tokio = { version = "1.47.1", features = ["full"] }
 tokio-test = "0.4.4"
+toml = "0.9.8"
 tracing = "0.1.41"
 tracing-subscriber = { version = "0.3.20", features = ["fmt"] }
 unic-langid = "0.9.6"
