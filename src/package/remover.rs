@@ -71,6 +71,15 @@ pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), DeleteError> {
     }
     let version = version.unwrap();
 
+    remove_by_version(pkg_name, &version, db).await?;
+    Ok(())
+}
+
+pub async fn remove_by_version(
+    pkg_name: &str,
+    version: &str,
+    db: &PackageDB,
+) -> Result<(), DeleteError> {
     info!("uhpm.remove.attempting_remove", pkg_name, &version);
 
     let mut pkg_dir = dirs::home_dir().unwrap();

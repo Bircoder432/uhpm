@@ -23,6 +23,7 @@ use crate::db::PackageDB;
 use crate::fetcher;
 use crate::package::installer;
 use crate::package::remover;
+use crate::package::remover::remove_by_version;
 use crate::package::switcher;
 use crate::package::updater;
 use crate::repo::{RepoDB, parse_repos};
@@ -188,9 +189,16 @@ impl Cli {
                     error!("cli.remove.no_packages");
                 } else {
                     for pkg_name in packages {
-                        info!("cli.remove.removing", pkg_name);
-                        if let Err(e) = remover::remove(pkg_name, db).await {
-                            error!("cli.remove.failed", pkg_name, e);
+                        if pkg_name.contains("@") {
+                            let pkgparts: Vec<&str> = pkg_name.split("@").collect();
+                            let pkgname = pkgparts[0];
+                            let pkgver = pkgparts[1];
+                            remove_by_version(pkgname, pkgver, db).await;
+                        } else {
+                            info!("cli.remove.removing", pkg_name);
+                            if let Err(e) = remover::remove(pkg_name, db).await {
+                                error!("cli.remove.failed", pkg_name, e);
+                            }
                         }
                     }
                 }
