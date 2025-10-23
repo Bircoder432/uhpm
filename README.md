@@ -1,6 +1,6 @@
 # UHPM - Universal Home Package Manager 🚀
 
-**UHPM** is a universal package manager for home use, written in Rust. Future plans include support for application distribution similar to Flatpak.
+**UHPM** is a universal package manager for home use, written in Rust. Future plans include support for application distribution similar to brew.
 
 ## Features ✨
 
@@ -87,8 +87,8 @@ cargo build --release
 ## Roadmap 🗺️
 
 - [ ] Package repository support
-- [ ] Graphical interface
 - [ ] Multi-architecture and OS support
+- [ ] Traditional package manager hooks
 
 ## License 📄
 
