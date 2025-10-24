@@ -24,7 +24,6 @@ use uhpm::{debug, info};
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize tracing/logging
     tracing_subscriber::fmt::init();
-
     // Determine database path (~/.uhpm/packages.db)
     let mut db_path = dirs::home_dir().ok_or("Could not determine home directory")?;
     db_path.push(".uhpm");
