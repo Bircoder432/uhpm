@@ -1,4 +1,3 @@
-use flate2::write::GzEncoder;
 use std::io::Write;
 use tempfile::tempdir;
 use uhpm::db::PackageDB;
@@ -8,6 +7,8 @@ use uhpm::{debug, info, lprintln};
 // Test with maximum debugging
 #[tokio::test]
 async fn test_installer_with_debug_output() -> Result<(), Box<dyn std::error::Error>> {
+    use flate2::write::GzEncoder;
+
     let tmp_dir = tempdir()?;
     let home_path = tmp_dir.path().to_path_buf();
     unsafe {
@@ -77,7 +78,7 @@ async fn test_installer_with_debug_output() -> Result<(), Box<dyn std::error::Er
 
     // Создаем архив напрямую
     let archive_file = std::fs::File::create(&archive_path)?;
-    let enc = flate2::write::GzEncoder::new(archive_file, flate2::Compression::default());
+    let enc = GzEncoder::new(archive_file, flate2::Compression::default());
     let mut tar = tar::Builder::new(enc);
 
     tar.append_path_with_name(&meta_path, "uhp.toml")?;
@@ -161,6 +162,8 @@ async fn test_installer_with_debug_output() -> Result<(), Box<dyn std::error::Er
 // Simple test that works - just to verify basic functionality
 #[tokio::test]
 async fn test_installer_minimal_working() -> Result<(), Box<dyn std::error::Error>> {
+    use flate2::write::GzEncoder;
+
     let tmp_dir = tempdir()?;
     let home_path = tmp_dir.path().to_path_buf();
     unsafe {
@@ -192,7 +195,7 @@ async fn test_installer_minimal_working() -> Result<(), Box<dyn std::error::Erro
     // Create archive
     let archive_path = home_path.join("minimal.uhp");
     let archive_file = std::fs::File::create(&archive_path)?;
-    let enc = flate2::write::GzEncoder::new(archive_file, flate2::Compression::default());
+    let enc = GzEncoder::new(archive_file, flate2::Compression::default());
     let mut tar = tar::Builder::new(enc);
     tar.append_path_with_name(&meta_path, "uhp.toml")?;
 
@@ -223,6 +226,8 @@ async fn test_installer_minimal_working() -> Result<(), Box<dyn std::error::Erro
 // Keep the working tests
 #[tokio::test]
 async fn test_installer_simple() -> Result<(), Box<dyn std::error::Error>> {
+    use flate2::write::GzEncoder;
+
     let tmp_dir = tempdir()?;
     let home_path = tmp_dir.path().to_path_buf();
     unsafe {
@@ -257,7 +262,7 @@ async fn test_installer_simple() -> Result<(), Box<dyn std::error::Error>> {
     // Create archive
     let archive_path = home_path.join("simple-pkg.uhp");
     let archive_file = std::fs::File::create(&archive_path)?;
-    let enc = flate2::write::GzEncoder::new(archive_file, flate2::Compression::default());
+    let enc = GzEncoder::new(archive_file, flate2::Compression::default());
     let mut tar = tar::Builder::new(enc);
     tar.append_path_with_name(&meta_path, "uhp.toml")?;
     tar.append_path_with_name(&symlist_path, "symlist")?;
