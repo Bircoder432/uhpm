@@ -1,6 +1,6 @@
 # UHPM - Universal Home Package Manager
 
-[![Rust](https://img.shields.io/badge/Rust-1.70%2B-orange?logo=rust)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/Rust-1.90%2B-orange?logo=rust)](https://www.rust-lang.org/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 **UHPM** is a high-performance, universal package manager for home use, built in Rust. Designed with speed and flexibility in mind, it handles package installation, version management, and dependency tracking through a robust SQLite backend.
