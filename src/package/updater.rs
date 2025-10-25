@@ -7,7 +7,7 @@ use crate::db::PackageDB;
 use crate::error::UpdaterError;
 use crate::fetcher;
 use crate::repo::{RepoDB, parse_repos};
-use crate::{error, info, warn};
+use crate::{info, warn};
 use semver::Version;
 use std::path::Path;
 
@@ -36,7 +36,7 @@ pub async fn check_for_update(
     let repos = parse_repos(&repos_path).unwrap();
 
     let mut latest_url = None;
-    let mut latest_version: Option<Version> = None;
+    //let mut latest_version: Option<Version> = None;
 
     // Step 3: iterate through repositories
     for (repo_name, repo_path) in repos {
@@ -59,7 +59,7 @@ pub async fn check_for_update(
                 let ver = Version::parse(&ver_str).unwrap_or(Version::new(0, 0, 0));
                 let inst_ver = Version::parse(&installed_version).unwrap_or(Version::new(0, 0, 0));
                 if ver > inst_ver {
-                    latest_version = Some(ver);
+                    // latest_version = Some(ver);
                     latest_url = Some(repo_db.get_package(&name, &ver_str).await.unwrap());
                 }
             }

@@ -1,8 +1,7 @@
-use std::io::Write;
 use tempfile::tempdir;
 use uhpm::db::PackageDB;
 use uhpm::package::{Package, Source, installer, remover};
-use uhpm::{debug, info, lprintln};
+use uhpm::{info, lprintln};
 
 // Test with maximum debugging
 #[tokio::test]

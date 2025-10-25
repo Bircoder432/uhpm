@@ -18,7 +18,6 @@ use crate::error::SwitchError;
 use crate::package::installer::create_symlinks;
 use crate::{info, warn};
 use semver::Version;
-use std::path::PathBuf;
 
 /// Errors that may occur when switching package versions.
 // #[derive(Debug)]

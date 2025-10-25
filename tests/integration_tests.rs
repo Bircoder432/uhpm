@@ -1,8 +1,8 @@
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use tempfile::tempdir;
 use uhpm::db::PackageDB;
 use uhpm::package::{Package, Source, installer, remover};
-use uhpm::{debug, info, lprintln};
+use uhpm::{info, lprintln};
 
 // Вспомогательные функции для создания тестовых пакетов
 fn create_test_package(pkg_dir: &Path, name: &str, version: &str) -> Package {
