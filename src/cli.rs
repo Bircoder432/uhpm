@@ -1,4 +1,3 @@
-use crate::self_remove;
 use crate::service::PackageService;
 use crate::{error, info, lprintln};
 use clap::CommandFactory;
@@ -32,7 +31,6 @@ pub enum Commands {
         packages: Vec<String>,
     },
     List,
-    SelfRemove,
     Update {
         #[arg(short, long)]
         file: Option<PathBuf>,
@@ -142,10 +140,6 @@ impl Cli {
                         error!("cli.switch.invalid_version", pkg_version, e);
                     }
                 }
-            }
-
-            Commands::SelfRemove => {
-                self_remove::self_remove()?;
             }
 
             Commands::Completions { shell } => match shell.to_lowercase().as_str() {

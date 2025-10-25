@@ -7,7 +7,6 @@ pub mod locale;
 pub mod log;
 pub mod package;
 pub mod repo;
-pub mod self_remove;
 pub mod service;
 pub mod symlist;
 
