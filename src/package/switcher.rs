@@ -14,41 +14,42 @@
 //! Errors are unified under [`SwitchError`] for consistency.
 
 use crate::db::PackageDB;
+use crate::error::SwitchError;
 use crate::package::installer::create_symlinks;
 use crate::{info, warn};
 use semver::Version;
 use std::path::PathBuf;
 
 /// Errors that may occur when switching package versions.
-#[derive(Debug)]
-pub enum SwitchError {
-    /// Filesystem or I/O error.
-    Io(std::io::Error),
-    /// Database error from `sqlx`.
-    Db(sqlx::Error),
-    /// Target package directory does not exist.
-    MissingPackageDir(PathBuf),
-    /// Error while parsing or processing `symlist.ron`.
-    Symlist(crate::symlist::SymlistError),
-    /// Requested package version not found in database.
-    PackageNotFound(String, Version),
-}
+// #[derive(Debug)]
+// pub enum SwitchError {
+//     /// Filesystem or I/O error.
+//     Io(std::io::Error),
+//     /// Database error from `sqlx`.
+//     Db(sqlx::Error),
+//     /// Target package directory does not exist.
+//     MissingPackageDir(PathBuf),
+//     /// Error while parsing or processing `symlist.ron`.
+//     Symlist(crate::symlist::SymlistError),
+//     /// Requested package version not found in database.
+//     PackageNotFound(String, Version),
+// }
 
-impl From<std::io::Error> for SwitchError {
-    fn from(e: std::io::Error) -> Self {
-        SwitchError::Io(e)
-    }
-}
-impl From<sqlx::Error> for SwitchError {
-    fn from(e: sqlx::Error) -> Self {
-        SwitchError::Db(e)
-    }
-}
-impl From<crate::symlist::SymlistError> for SwitchError {
-    fn from(e: crate::symlist::SymlistError) -> Self {
-        SwitchError::Symlist(e)
-    }
-}
+// impl From<std::io::Error> for SwitchError {
+//     fn from(e: std::io::Error) -> Self {
+//         SwitchError::Io(e)
+//     }
+// }
+// impl From<sqlx::Error> for SwitchError {
+//     fn from(e: sqlx::Error) -> Self {
+//         SwitchError::Db(e)
+//     }
+// }
+// impl From<crate::symlist::SymlistError> for SwitchError {
+//     fn from(e: crate::symlist::SymlistError) -> Self {
+//         SwitchError::Symlist(e)
+//     }
+// }
 
 /// Switch the active version of a package.
 ///

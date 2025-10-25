@@ -257,6 +257,68 @@ impl PackageDB {
         Ok(result)
     }
 
+    pub async fn get_latest_package_version(
+        &self,
+        pkg_name: &str,
+    ) -> Result<Option<Package>, sqlx::Error> {
+        debug!("db.get_latest_package_version.fetching", pkg_name);
+
+        // Get all packages with the given name
+        let rows =
+            sqlx::query("SELECT name, version, author, src, checksum FROM packages WHERE name = ?")
+                .bind(pkg_name)
+                .fetch_all(&self.pool)
+                .await?;
+
+        if rows.is_empty() {
+            debug!("db.get_latest_package_version.not_found", pkg_name);
+            return Ok(None);
+        }
+
+        // Parse packages and find the one with maximum version
+        let mut packages = Vec::new();
+
+        for row in rows {
+            let version_str: String = row.get("version");
+            if let Ok(version) = Version::parse(&version_str) {
+                packages.push((row, version));
+            } else {
+                debug!(
+                    "db.get_latest_package_version.invalid_version",
+                    pkg_name, &version_str
+                );
+            }
+        }
+
+        if packages.is_empty() {
+            debug!("db.get_latest_package_version.no_valid_versions", pkg_name);
+            return Ok(None);
+        }
+
+        // Find the package with maximum version
+        let (latest_row, latest_version) = packages
+            .into_iter()
+            .max_by(|(_, a), (_, b)| a.cmp(b))
+            .expect("packages is not empty");
+
+        debug!(
+            "db.get_latest_package_version.found",
+            pkg_name, &latest_version
+        );
+
+        let package = Package::new(
+            latest_row.get::<String, _>("name"),
+            latest_version,
+            latest_row.get::<String, _>("author"),
+            Source::Raw(latest_row.get::<String, _>("src")),
+            latest_row.get::<String, _>("checksum"),
+            Vec::new(), // Empty dependencies for now
+        );
+
+        debug!("db.get_latest_package_version.retrieved", &package);
+        Ok(Some(package))
+    }
+
     /// Lists all installed packages.
     pub async fn list_packages(&self) -> Result<Vec<(String, String, bool)>, sqlx::Error> {
         debug!("db.list_packages.listing");

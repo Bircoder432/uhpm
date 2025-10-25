@@ -21,7 +21,9 @@
 //! both wrapped in the [`DeleteError`] enumeration.
 
 use crate::db::PackageDB;
-use crate::{info, warn};
+use crate::error::UhpmError;
+use crate::package::switcher;
+use crate::{error, info, warn};
 
 /// Errors that can occur during package removal
 #[derive(Debug)]
@@ -63,7 +65,7 @@ impl From<sqlx::Error> for DeleteError {
 /// - If package directory doesn't exist, removal continues with file cleanup
 /// - Non-existent files are skipped during cleanup
 /// - Database record is always removed if package exists in database
-pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), DeleteError> {
+pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), UhpmError> {
     let version = db.get_package_version(pkg_name).await?;
     if version.is_none() {
         warn!("uhpm.remove.pkg_not_found_db", pkg_name);
@@ -79,7 +81,7 @@ pub async fn remove_by_version(
     pkg_name: &str,
     version: &str,
     db: &PackageDB,
-) -> Result<(), DeleteError> {
+) -> Result<(), UhpmError> {
     info!("uhpm.remove.attempting_remove", pkg_name, &version);
 
     let mut pkg_dir = dirs::home_dir().unwrap();
@@ -107,6 +109,17 @@ pub async fn remove_by_version(
     }
 
     db.remove_package(pkg_name).await?;
+    let lastpkg = db.get_latest_package_version(pkg_name).await?;
+    if lastpkg.is_some() {
+        match switcher::switch_version(pkg_name, lastpkg.unwrap().version().to_owned(), db).await {
+            Ok(_) => {
+                info!("remover.remove_by_version.succes_switch_after_remove");
+            }
+            Err(e) => {
+                error!("remover.remove_by_version.switch_after_remove_error", e);
+            }
+        }
+    }
     info!("uhpm.remove.pkg_entry_removed", pkg_name);
 
     Ok(())

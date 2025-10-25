@@ -1,36 +1,6 @@
 //! # UHPM Package Maker (uhpmk)
 //!
 //! This binary crate provides a command-line utility for creating and packaging UHPM packages.
-//! It offers three main subcommands: `init` for initializing new package templates, `build` for
-//! building packages using build scripts, and `pack` for creating compressed package archives.
-//!
-//! ## Subcommands
-//!
-//! - `init`: Creates template package metadata (`uhp.toml`) and symlink list (`symlist`) files
-//! - `build`: Executes package build script (`uhpbuild`) and optionally packages the result
-//! - `pack`: Packages a directory containing package files into a compressed `.uhp` archive
-//!
-//! ## Usage Examples
-//!
-//! Initialize a new package template:
-//! ```bash
-//! uhpmk init --out-dir ./my_package
-//! ```
-//!
-//! Build a package using its build script:
-//! ```bash
-//! uhpmk build --package-dir ./my_package
-//! ```
-//!
-//! Build and immediately package:
-//! ```bash
-//! uhpmk build --package-dir ./my_package --make
-//! ```
-//!
-//! Package an existing package directory:
-//! ```bash
-//! uhpmk pack --package-dir ./my_package --out-dir ./dist
-//! ```
 
 use clap::{Parser, Subcommand};
 use flate2::Compression;
@@ -39,7 +9,6 @@ use std::fs::File;
 use std::path::PathBuf;
 use std::process::Command;
 use tar::Builder;
-use uhpm::error::PackerError;
 use uhpm::package::{Package, meta_parser};
 use uhpm::symlist;
 use uhpm::{error, info};
@@ -49,11 +18,9 @@ use uhpm::{error, info};
 #[command(
     name = "uhpmk",
     version = "1.0",
-    about = "Universal Home Package Maker",
-    long_about = "A utility for creating and packaging UHPM (Universal Home Package Manager) packages.\n\nProvides commands to initialize package templates, build packages using build scripts, and create compressed package archives."
+    about = "Universal Home Package Maker"
 )]
 struct Cli {
-    /// The subcommand to execute
     #[command(subcommand)]
     command: Commands,
 }
@@ -62,56 +29,42 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Initialize a new package template
-    ///
-    /// Creates template files for package metadata (uhp.toml) and symbolic link definitions (symlist)
-    /// in the specified output directory or current working directory if not specified.
     Init {
-        /// Output directory for template files
         #[arg(short, long)]
         out_dir: Option<PathBuf>,
     },
 
     /// Build a package using its build script
-    ///
-    /// Executes the uhpbuild shell script in the package directory to build the package.
-    /// Optionally creates a .uhp archive after successful build.
     Build {
-        /// Directory containing package files and build script
         #[arg(value_name = "PATH")]
         package_dir: PathBuf,
-
-        /// Immediately package the built result into a .uhp archive
         #[arg(short, long)]
         pack: bool,
-
         #[arg(short, long)]
         install: bool,
-
-        /// Output directory for the created package archive (only used with --make)
         #[arg(short, long)]
         out_dir: Option<PathBuf>,
     },
 
     /// Package a directory into a .uhp archive
-    ///
-    /// Compresses the specified package directory into a .uhp archive file
-    /// containing all package files and metadata.
     Pack {
-        /// Directory containing package files to archive
         #[arg(value_name = "PATH")]
         package_dir: PathBuf,
-        /// Output directory for the created package archive
         #[arg(short, long)]
         out_dir: Option<PathBuf>,
     },
 }
 
-/// Main entry point for uhpmk utility
-///
-/// Parses command line arguments and executes the appropriate subcommand
+#[derive(thiserror::Error, Debug)]
+enum PackerError {
+    #[error("IO error: {0}")]
+    Io(#[from] std::io::Error),
+    #[error("Package error: {0}")]
+    Package(String),
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize logging
     tracing_subscriber::fmt::init();
     let cli = Cli::parse();
 
@@ -119,13 +72,11 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         Commands::Init { out_dir } => {
             let out_dir = out_dir.unwrap_or(std::env::current_dir()?);
 
-            // Create package metadata template
             let pkg = Package::template();
             let out_path = out_dir.join("uhp.toml");
             pkg.save_to_toml(&out_path)?;
             info!("uhpmk.init.uhp_toml_created", out_path.display());
 
-            // Create symlink list template
             let symlist_path = out_dir.join("symlist");
             symlist::save_template(&symlist_path)?;
             info!("uhpmk.init.symlist_created", symlist_path.display());
@@ -137,35 +88,27 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             install,
             out_dir,
         } => {
-            // Verify package directory exists
             if !package_dir.exists() {
                 error!("uhpmk.build.dir_not_found", package_dir.display());
-                return Err(
-                    format!("Package directory not found: {}", package_dir.display()).into(),
-                );
+                return Err("Package directory not found".into());
             }
 
-            // Verify build script exists
             let build_script_path = package_dir.join("uhpbuild");
             if !build_script_path.exists() {
                 error!("uhpmk.build.script_not_found", build_script_path.display());
-                return Err(
-                    format!("Build script not found: {}", build_script_path.display()).into(),
-                );
+                return Err("Build script not found".into());
             }
 
-            // Make build script executable (Unix-like systems)
             #[cfg(unix)]
             {
                 use std::os::unix::fs::PermissionsExt;
                 let mut perms = std::fs::metadata(&build_script_path)?.permissions();
-                perms.set_mode(0o755); // rwxr-xr-x
+                perms.set_mode(0o755);
                 std::fs::set_permissions(&build_script_path, perms)?;
             }
 
             info!("uhpmk.build.executing_script", build_script_path.display());
 
-            // Execute the build script
             let status = Command::new(&build_script_path)
                 .current_dir(&package_dir)
                 .status()?;
@@ -177,7 +120,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
             info!("uhpmk.build.script_completed");
 
-            // If --pack flag is set, package the result
             if pack {
                 let out_dir = out_dir.unwrap_or(std::env::current_dir()?);
                 let pkg_path = packer(package_dir.join("package"), out_dir)?;
@@ -186,10 +128,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                         dirs::home_dir().ok_or("Could not determine home directory")?;
                     db_path.push(".uhpm");
                     db_path.push("packages.db");
-                    let package_db = uhpm::db::PackageDB::new(&db_path)?.init().await.unwrap();
-                    uhpm::package::installer::install(&pkg_path, &package_db)
-                        .await
-                        .unwrap();
+                    let package_db = uhpm::db::PackageDB::new(&db_path)?.init().await?;
+                    uhpm::package::installer::install(&pkg_path, &package_db).await?;
                 }
             }
         }
@@ -206,37 +146,29 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 
-fn packer(package_dir: PathBuf, out_dir: PathBuf) -> Result<PathBuf, PackerError> {
-    // Verify package metadata exists
+fn packer(package_dir: PathBuf, out_dir: PathBuf) -> Result<PathBuf, Box<dyn std::error::Error>> {
     let meta_path = package_dir.join("uhp.toml");
     if !meta_path.exists() {
         error!("uhpmk.pack.meta_not_found", meta_path.display());
-        return Err(PackerError::Io(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            format!("uhp.toml not found in {}", package_dir.display()),
-        )));
+        return Err(PackerError::Package(format!(
+            "uhp.toml not found in {}",
+            package_dir.display()
+        ))
+        .into());
     }
 
-    // Parse package metadata
-    let pkg: Package = meta_parser(&meta_path).map_err(|e| {
-        PackerError::Io(std::io::Error::new(
-            std::io::ErrorKind::InvalidData,
-            format!("Failed to parse package metadata: {}", e),
-        ))
-    })?;
+    let pkg: Package = meta_parser(&meta_path)
+        .map_err(|e| PackerError::Package(format!("Failed to parse package metadata: {}", e)))?;
 
-    // Create package archive
     let filename = format!("{}-{}.uhp", pkg.name(), pkg.version());
     let archive_path = out_dir.join(&filename);
 
-    let tar_gz = File::create(&archive_path).map_err(PackerError::Io)?;
+    let tar_gz = File::create(&archive_path)?;
     let enc = GzEncoder::new(tar_gz, Compression::default());
     let mut tar = Builder::new(enc);
 
-    // Add all files from package directory to archive
-    tar.append_dir_all(".", &package_dir)
-        .map_err(PackerError::Io)?;
-    tar.finish().map_err(PackerError::Io)?;
+    tar.append_dir_all(".", &package_dir)?;
+    tar.finish()?;
 
     info!("uhpmk.pack.package_packed", archive_path.display());
     Ok(archive_path)

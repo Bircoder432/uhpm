@@ -25,6 +25,7 @@
 //! both wrapped in the [`InstallError`] enumeration.
 
 use crate::db::PackageDB;
+use crate::error::UhpmError;
 use crate::package::Package;
 use crate::symlist;
 use crate::{debug, info, warn};
@@ -70,7 +71,7 @@ impl From<crate::package::MetaParseError> for InstallError {
 /// 4. Moves package to permanent location
 /// 5. Creates symbolic links for package files
 /// 6. Updates package database
-pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), InstallError> {
+pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), UhpmError> {
     info!("installer.install.starting", pkg_path.display());
 
     let unpacked = unpack(pkg_path)?;
