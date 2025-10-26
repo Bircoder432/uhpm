@@ -8,9 +8,7 @@ default-run = "uhpm"
 name = "uhpm"
 crate-type = ["cdylib", "rlib"]
 
-[[bin]]
-name = "uhpmk"
-path = "src/bin/uhpmk.rs"
+
 
 
 
