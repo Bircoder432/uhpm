@@ -95,7 +95,7 @@ pub async fn remove_by_version(
         warn!("uhpm.remove.pkg_dir_not_found", pkg_name, pkg_dir.display());
     }
 
-    let files: Vec<String> = db.get_installed_files(pkg_name).await?;
+    let files: Vec<String> = db.get_installed_files(pkg_name, version).await?;
     for f in files {
         let path = std::path::PathBuf::from(f);
         if path.exists() {

@@ -389,7 +389,7 @@ async fn test_database_only() -> Result<(), Box<dyn std::error::Error>> {
     assert_eq!(deps.len(), 2, "Should have 2 dependencies");
 
     // Проверяем установленные файлы
-    let installed_files = db.get_installed_files("db-only-test").await?;
+    let installed_files = db.get_installed_files("db-only-test", "1.0.0").await?;
     assert_eq!(installed_files.len(), 2, "Should have 2 installed files");
 
     // Удаляем пакет - используем правильное имя пакета

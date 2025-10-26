@@ -16,7 +16,7 @@ async fn test_installer_with_debug_output() -> Result<(), Box<dyn std::error::Er
 
     lprintln!("test.installer_debug.start", home_path.display());
 
-    // Создаем необходимые директории
+    // Create necessary directories
     std::fs::create_dir_all(home_path.join(".uhpm/packages"))?;
     std::fs::create_dir_all(home_path.join(".local/bin"))?;
 
@@ -75,7 +75,7 @@ async fn test_installer_with_debug_output() -> Result<(), Box<dyn std::error::Er
         archive_path.display()
     );
 
-    // Создаем архив напрямую
+    // Create archive directly
     let archive_file = std::fs::File::create(&archive_path)?;
     let enc = GzEncoder::new(archive_file, flate2::Compression::default());
     let mut tar = tar::Builder::new(enc);
@@ -115,7 +115,7 @@ async fn test_installer_with_debug_output() -> Result<(), Box<dyn std::error::Er
                 format!("{:?}", packages_after)
             );
 
-            let installed_files = db.get_installed_files("debug-pkg").await?;
+            let installed_files = db.get_installed_files("debug-pkg", "1.0.0").await?;
             lprintln!(
                 "test.installer_debug.installed_files",
                 format!("{:?}", installed_files)
@@ -154,7 +154,7 @@ async fn test_installer_with_debug_output() -> Result<(), Box<dyn std::error::Er
     // Don't fail the test - we're just gathering information
     lprintln!("test.installer_debug.test_complete", "");
 
-    // В этом тесте нас интересует отладочная информация, а не результат
+    // This test is focused on debug information, not the result
     Ok(())
 }
 
@@ -198,7 +198,7 @@ async fn test_installer_minimal_working() -> Result<(), Box<dyn std::error::Erro
     let mut tar = tar::Builder::new(enc);
     tar.append_path_with_name(&meta_path, "uhp.toml")?;
 
-    // Добавляем пустой symlist чтобы избежать ошибок
+    // Add empty symlist to avoid errors
     let symlist_path = pkg_dir.join("symlist");
     std::fs::write(&symlist_path, "# Empty symlist")?;
     tar.append_path_with_name(&symlist_path, "symlist")?;
@@ -214,7 +214,7 @@ async fn test_installer_minimal_working() -> Result<(), Box<dyn std::error::Erro
         format!("{:?}", result)
     );
 
-    // Cleanup если установка прошла успешно
+    // Cleanup if installation was successful
     if result.is_ok() {
         let _ = remover::remove("minimal", &db).await;
     }

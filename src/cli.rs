@@ -25,6 +25,8 @@ pub enum Commands {
         package: Vec<String>,
         #[arg(short, long)]
         version: Option<String>,
+        #[arg(short, long)]
+        extract: bool,
     },
     Remove {
         #[arg(value_name = "PACKAGE")]
@@ -52,11 +54,16 @@ impl Cli {
             Commands::Install {
                 file,
                 package,
-                version,
+                version, //TODO: сделать package@0.0.0 а не это говно
+                extract,
             } => {
                 if let Some(path) = file {
                     info!("cli.install.from_file", path.display());
-                    service.install_from_file(path).await?;
+                    if *extract {
+                        service.extract_package(path).await?;
+                    } else {
+                        service.install_from_file(path).await?;
+                    }
                 } else if !package.is_empty() {
                     for pkg_name in package {
                         info!("cli.install.from_repo", pkg_name);

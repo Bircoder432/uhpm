@@ -20,7 +20,6 @@ cargo build $CARGO_FLAGS
 # Copy binaries
 echo "Copying binaries..."
 cp target/release/uhpm "$BIN_DIR/"
-cp target/release/uhpmk "$BIN_DIR/"
 
 # Copy locale files (RON format)
 echo "Copying locale files..."
@@ -52,7 +51,7 @@ cp uhp.toml "$BUILD_DIR/"
 cp symlist "$BUILD_DIR/"
 
 # Set executable permissions
-chmod +x "$BIN_DIR/uhpm" "$BIN_DIR/uhpmk"
+chmod +x "$BIN_DIR/uhpm"
 
 # Debug: show package structure
 echo "Package structure:"

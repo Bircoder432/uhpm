@@ -226,7 +226,7 @@ pub fn create_symlinks(package_root: &Path) -> Result<Vec<PathBuf>, std::io::Err
 /// 2. Creates temporary extraction directory
 /// 3. Extracts tar.gz archive contents
 /// 4. Returns path to extracted directory
-fn unpack(pkg_path: &Path) -> Result<PathBuf, std::io::Error> {
+pub fn unpack(pkg_path: &Path) -> Result<PathBuf, std::io::Error> {
     if pkg_path.extension().and_then(|s| s.to_str()) != Some("uhp") {
         return Err(std::io::Error::new(
             std::io::ErrorKind::InvalidInput,

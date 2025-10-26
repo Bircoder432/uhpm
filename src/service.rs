@@ -20,6 +20,11 @@ impl PackageService {
         Ok(())
     }
 
+    pub async fn extract_package(&self, path: &Path) -> Result<(), UhpmError> {
+        installer::unpack(path)?;
+        Ok(())
+    }
+
     pub async fn install_from_repo(
         &self,
         package_name: &str,

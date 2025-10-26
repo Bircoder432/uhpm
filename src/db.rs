@@ -16,7 +16,7 @@
 //!   - Marks which version is currently active via the `current` column.
 //!
 //! - **`installed_files`**
-//!   - Maps installed package files to their owning package.
+//!   - Maps installed package files to their owning package and version.
 //!
 //! - **`dependencies`**
 //!   - Tracks package dependencies by name and version.
@@ -116,8 +116,9 @@ impl PackageDB {
             r#"
             CREATE TABLE IF NOT EXISTS installed_files (
                 package_name TEXT NOT NULL,
+                package_version TEXT NOT NULL,
                 file_path TEXT NOT NULL,
-                PRIMARY KEY(package_name, file_path)
+                PRIMARY KEY(package_name, package_version, file_path)
             )
             "#,
         )
@@ -198,9 +199,10 @@ impl PackageDB {
         for file_path in installed_files {
             debug!("db.add_package_full.adding_file", file_path);
             sqlx::query(
-                "INSERT OR REPLACE INTO installed_files (package_name, file_path) VALUES (?, ?)",
+                "INSERT OR REPLACE INTO installed_files (package_name, package_version, file_path) VALUES (?, ?, ?)",
             )
             .bind(&pkg.name())
+            .bind(&pkg.version().to_string())
             .bind(file_path)
             .execute(&self.pool)
             .await?;
@@ -210,9 +212,40 @@ impl PackageDB {
         Ok(())
     }
 
-    /// Returns all files installed by a package.
-    pub async fn get_installed_files(&self, pkg_name: &str) -> Result<Vec<String>, sqlx::Error> {
-        debug!("db.get_installed_files.fetching", pkg_name);
+    /// Returns all files installed by a package (specific version).
+    pub async fn get_installed_files(
+        &self,
+        pkg_name: &str,
+        pkg_version: &str,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        debug!("db.get_installed_files.fetching", pkg_name, pkg_version);
+        let rows = sqlx::query(
+            "SELECT file_path FROM installed_files WHERE package_name = ? AND package_version = ?",
+        )
+        .bind(pkg_name)
+        .bind(pkg_version)
+        .fetch_all(&self.pool)
+        .await?;
+
+        let files: Vec<String> = rows
+            .into_iter()
+            .map(|row| row.get::<String, _>("file_path"))
+            .collect();
+        debug!(
+            "db.get_installed_files.found",
+            files.len(),
+            pkg_name,
+            pkg_version
+        );
+        Ok(files)
+    }
+
+    /// Returns all files installed by all versions of a package.
+    pub async fn get_all_installed_files(
+        &self,
+        pkg_name: &str,
+    ) -> Result<Vec<String>, sqlx::Error> {
+        debug!("db.get_all_installed_files.fetching", pkg_name);
         let rows = sqlx::query("SELECT file_path FROM installed_files WHERE package_name = ?")
             .bind(pkg_name)
             .fetch_all(&self.pool)
@@ -222,11 +255,36 @@ impl PackageDB {
             .into_iter()
             .map(|row| row.get::<String, _>("file_path"))
             .collect();
-        debug!("db.get_installed_files.found", files.len(), pkg_name);
+        debug!("db.get_all_installed_files.found", files.len(), pkg_name);
         Ok(files)
     }
 
-    /// Removes a package and its associated data from the database.
+    /// Removes a specific version of a package and its associated data from the database.
+    pub async fn remove_package_version(
+        &self,
+        pkg_name: &str,
+        pkg_version: &str,
+    ) -> Result<(), sqlx::Error> {
+        info!("db.remove_package_version.removing", pkg_name, pkg_version);
+        sqlx::query("DELETE FROM installed_files WHERE package_name = ? AND package_version = ?")
+            .bind(pkg_name)
+            .bind(pkg_version)
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM dependencies WHERE package_name = ?")
+            .bind(pkg_name)
+            .execute(&self.pool)
+            .await?;
+        sqlx::query("DELETE FROM packages WHERE name = ? AND version = ?")
+            .bind(pkg_name)
+            .bind(pkg_version)
+            .execute(&self.pool)
+            .await?;
+        info!("db.remove_package_version.removed", pkg_name, pkg_version);
+        Ok(())
+    }
+
+    /// Removes all versions of a package and its associated data from the database.
     pub async fn remove_package(&self, pkg_name: &str) -> Result<(), sqlx::Error> {
         info!("db.remove_package.removing", pkg_name);
         sqlx::query("DELETE FROM installed_files WHERE package_name = ?")
@@ -366,7 +424,7 @@ impl PackageDB {
     ) -> Result<Option<Package>, sqlx::Error> {
         debug!("db.get_current_package.fetching", pkg_name);
         let row = sqlx::query(
-            "SELECT name, version, author, src, checksum FROM packages WHERE name = ? LIMIT 1",
+            "SELECT name, version, author, src, checksum FROM packages WHERE name = ? AND current = 1 LIMIT 1",
         )
         .bind(pkg_name)
         .fetch_optional(&self.pool)

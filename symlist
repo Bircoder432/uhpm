@@ -1,6 +1,6 @@
 # UHPM binaries
 bin/uhpm $HOME/.local/bin/uhpm
-bin/uhpmk $HOME/.local/bin/uhpmk
+
 
 # Locale files (RON format)
 locale/en.ron $HOME/.uhpm/locale/en.ron
