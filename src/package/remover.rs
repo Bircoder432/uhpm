@@ -65,7 +65,7 @@ impl From<sqlx::Error> for DeleteError {
 /// - If package directory doesn't exist, removal continues with file cleanup
 /// - Non-existent files are skipped during cleanup
 /// - Database record is always removed if package exists in database
-pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), UhpmError> {
+pub async fn remove(pkg_name: &str, db: &PackageDB, direct: bool) -> Result<(), UhpmError> {
     let version = db.get_package_version(pkg_name).await?;
     if version.is_none() {
         warn!("uhpm.remove.pkg_not_found_db", pkg_name);
@@ -73,7 +73,7 @@ pub async fn remove(pkg_name: &str, db: &PackageDB) -> Result<(), UhpmError> {
     }
     let version = version.unwrap();
 
-    remove_by_version(pkg_name, &version, db).await?;
+    remove_by_version(pkg_name, &version, db, direct).await?;
     Ok(())
 }
 
@@ -81,6 +81,7 @@ pub async fn remove_by_version(
     pkg_name: &str,
     version: &str,
     db: &PackageDB,
+    direct: bool,
 ) -> Result<(), UhpmError> {
     info!("uhpm.remove.attempting_remove", pkg_name, &version);
 
@@ -111,7 +112,9 @@ pub async fn remove_by_version(
     db.remove_package(pkg_name).await?;
     let lastpkg = db.get_latest_package_version(pkg_name).await?;
     if lastpkg.is_some() {
-        match switcher::switch_version(pkg_name, lastpkg.unwrap().version().to_owned(), db).await {
+        match switcher::switch_version(pkg_name, lastpkg.unwrap().version().to_owned(), db, direct)
+            .await
+        {
             Ok(_) => {
                 info!("remover.remove_by_version.succes_switch_after_remove");
             }

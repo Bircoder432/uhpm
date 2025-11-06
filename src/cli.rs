@@ -27,10 +27,14 @@ pub enum Commands {
         version: Option<String>,
         #[arg(short, long)]
         extract: bool,
+        #[arg(short, long)]
+        direct: bool,
     },
     Remove {
         #[arg(value_name = "PACKAGE")]
         packages: Vec<String>,
+        #[arg(short, long)]
+        direct: bool,
     },
     List,
     Update {
@@ -38,10 +42,14 @@ pub enum Commands {
         file: Option<PathBuf>,
         #[arg(value_name = "PACKAGE")]
         packages: Vec<String>,
+        #[arg(short, long)]
+        direct: bool,
     },
     Switch {
         #[arg(value_name = "PACKAGE@VERSION")]
         target: String,
+        #[arg(short, long)]
+        direct: bool,
     },
     Completions {
         shell: String,
@@ -56,19 +64,20 @@ impl Cli {
                 package,
                 version, //TODO: сделать package@0.0.0 а не это говно
                 extract,
+                direct,
             } => {
                 if let Some(path) = file {
                     info!("cli.install.from_file", path.display());
                     if *extract {
                         service.extract_package(path).await?;
                     } else {
-                        service.install_from_file(path).await?;
+                        service.install_from_file(path, *direct).await?;
                     }
                 } else if !package.is_empty() {
                     for pkg_name in package {
                         info!("cli.install.from_repo", pkg_name);
                         service
-                            .install_from_repo(pkg_name, version.as_deref())
+                            .install_from_repo(pkg_name, version.as_deref(), *direct)
                             .await?;
                     }
                 } else {
@@ -76,7 +85,7 @@ impl Cli {
                 }
             }
 
-            Commands::Remove { packages } => {
+            Commands::Remove { packages, direct } => {
                 if packages.is_empty() {
                     error!("cli.remove.no_packages");
                 } else {
@@ -87,14 +96,14 @@ impl Cli {
                                 let (pkg_name, pkg_version) = (parts[0], parts[1]);
                                 info!("cli.remove.parts", pkg_name, pkg_version);
                                 service
-                                    .remove_package_version(pkg_name, pkg_version)
+                                    .remove_package_version(pkg_name, pkg_version, *direct)
                                     .await?;
                             } else {
                                 error!("cli.remove.invalid_format", pkg_name);
                             }
                         } else {
                             info!("cli.remove.removing", pkg_name);
-                            service.remove_package(pkg_name).await?;
+                            service.remove_package(pkg_name, *direct).await?;
                         }
                     }
                 }
@@ -113,13 +122,17 @@ impl Cli {
                 }
             }
 
-            Commands::Update { file, packages } => {
+            Commands::Update {
+                file,
+                packages,
+                direct,
+            } => {
                 if let Some(path) = file {
                     info!("cli.update.from_file", path.display());
-                    service.install_from_file(path).await?;
+                    service.install_from_file(path, *direct).await?;
                 } else {
                     for package in packages {
-                        match service.update_package(package).await {
+                        match service.update_package(package, *direct).await {
                             Ok(()) => info!("cli.update.success", package),
                             Err(e) => error!("cli.update.error", package, e),
                         }
@@ -127,7 +140,7 @@ impl Cli {
                 }
             }
 
-            Commands::Switch { target } => {
+            Commands::Switch { target, direct } => {
                 let parts: Vec<&str> = target.split('@').collect();
                 if parts.len() != 2 {
                     error!("cli.switch.invalid_format", target);
@@ -140,7 +153,7 @@ impl Cli {
                 match semver::Version::parse(pkg_version) {
                     Ok(version) => {
                         info!("cli.switch.switching", pkg_name, pkg_version);
-                        service.switch_version(pkg_name, version).await?;
+                        service.switch_version(pkg_name, version, *direct).await?;
                         info!("cli.switch.success", pkg_name, pkg_version);
                     }
                     Err(e) => {

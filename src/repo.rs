@@ -2,59 +2,74 @@
 //!
 //! This module defines [`RepoDB`] and related utilities for managing package
 //! repositories in **UHPM (Universal Home Package Manager)**.
-//!
-//! ## Responsibilities
-//! - Store metadata about available packages in a repository (SQLite).
-//! - Provide URLs for downloading package archives.
-//! - Parse repository configuration files (`repos.ron`).
-//!
-//! ## Tables
-//! - **`packages`**
-//!   - Stores basic package metadata: `name`, `version`, `author`, `src`, `checksum`.
-//! - **`urls`**
-//!   - Maps `(name, version)` pairs to download URLs.
-//!
-//! ## Example
-//! ```rust,no_run
-//! use uhpm::repo::RepoDB;
-//! use std::path::Path;
-//!
-//! # tokio_test::block_on(async {
-//! let repo_db = RepoDB::new(Path::new("/tmp/repo.db")).await.unwrap();
-//!
-//! // Add a package
-//! repo_db.add_package("foo", "1.0.0", "Alice", "src", "sha256").await.unwrap();
-//! repo_db.add_url("foo", "1.0.0", "https://example.com/foo-1.0.0.uhp").await.unwrap();
-//!
-//! // List packages
-//! let pkgs = repo_db.list_packages().await.unwrap();
-//! println!("{:?}", pkgs);
-//! # });
-//! ```
 
 use crate::error::RepoError;
+use crate::fetcher;
+use dirs;
+use reqwest::Url;
 use ron::from_str;
+use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
-use std::fs;
-use std::path::Path;
-
-/// Errors that may occur while working with repositories.
+use std::env::home_dir;
+use std::fs::{self, File};
+use std::io::copy;
+use std::path::{Path, PathBuf};
+use std::str::FromStr;
 
 /// SQLite-backed package repository database.
-///
-/// Used for storing available package metadata and their download URLs.
 pub struct RepoDB {
     pool: SqlitePool,
+}
+pub type RepoMap = HashMap<String, String>;
+#[derive(Serialize, Deserialize, Clone)]
+pub enum RepoTypes {
+    Binary,
+    Source,
+    Other,
+}
+
+#[derive(Serialize, Deserialize)]
+pub struct RepoInfo {
+    pub name: String,
+    pub version: String,
+    pub type_: RepoTypes,
+}
+
+impl RepoInfo {
+    pub fn new(name: String, version: String, type_: RepoTypes) -> Self {
+        RepoInfo {
+            name,
+            version,
+            type_,
+        }
+    }
+
+    pub fn parse_from_ron(ron: &str) -> Result<Self, ron::error::SpannedError> {
+        ron::from_str(ron)
+    }
 }
 
 impl RepoDB {
     pub fn pool(&self) -> &SqlitePool {
-        return &self.pool;
+        &self.pool
     }
-    /// Opens (or creates) a new repository database at the given path.
-    ///
-    /// Ensures required tables exist by calling [`RepoDB::init_tables`].
+
+    /// Opens repository database from our repository structure
+    pub async fn from_repo_path(repo_path: &Path) -> Result<Self, sqlx::Error> {
+        let db_path = repo_path.join("repository.db");
+        if !db_path.exists() {
+            return Err(sqlx::Error::Configuration(
+                "Repository database not found".into(),
+            ));
+        }
+
+        let db_url = format!("sqlite://{}", db_path.to_str().unwrap());
+        let pool = SqlitePool::connect(&db_url).await?;
+        Ok(RepoDB { pool })
+    }
+
+    /// Opens (or creates) a new repository database at the given path
     pub async fn new(db_path: &Path) -> Result<Self, sqlx::Error> {
         if !db_path.exists() {
             if let Some(parent) = db_path.parent() {
@@ -70,45 +85,53 @@ impl RepoDB {
         Ok(db)
     }
 
-    /// Initializes required tables (`packages`, `urls`) if they don’t exist.
+    /// Initializes tables for our repository structure
     async fn init_tables(&self) -> Result<(), sqlx::Error> {
+        // Таблица пакетов (как в нашем uhprepo)
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS packages (
-                name TEXT NOT NULL,
-                version TEXT NOT NULL,
-                author TEXT NOT NULL,
-                src TEXT NOT NULL,
-                checksum TEXT NOT NULL,
-                PRIMARY KEY(name, version)
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                packagename TEXT NOT NULL,
+                pkgver TEXT NOT NULL,
+                url TEXT NOT NULL,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             "#,
         )
         .execute(&self.pool)
         .await?;
 
+        // Таблица исходников (как в нашем uhprepo)
         sqlx::query(
             r#"
-            CREATE TABLE IF NOT EXISTS urls (
-                name TEXT NOT NULL,
-                version TEXT NOT NULL,
+            CREATE TABLE IF NOT EXISTS sources (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                packagename TEXT NOT NULL,
+                pkgver TEXT NOT NULL,
                 url TEXT NOT NULL,
-                PRIMARY KEY(name, version)
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
             "#,
         )
         .execute(&self.pool)
         .await?;
+
+        // Индексы для быстрого поиска
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_packages_name ON packages(packagename)")
+            .execute(&self.pool)
+            .await?;
+
+        sqlx::query("CREATE INDEX IF NOT EXISTS idx_sources_name ON sources(packagename)")
+            .execute(&self.pool)
+            .await?;
 
         Ok(())
     }
 
-    /// Returns the download URL for a given package name and version.
-    ///
-    /// # Errors
-    /// Returns [`RepoError::NotFound`] if no URL is found.
-    pub async fn get_package(&self, name: &str, version: &str) -> Result<String, RepoError> {
-        let row = sqlx::query("SELECT url FROM urls WHERE name = ? AND version = ?")
+    /// Получить URL пакета по имени и версии
+    pub async fn get_package_url(&self, name: &str, version: &str) -> Result<String, RepoError> {
+        let row = sqlx::query("SELECT url FROM packages WHERE packagename = ? AND pkgver = ?")
             .bind(name)
             .bind(version)
             .fetch_optional(&self.pool)
@@ -120,47 +143,112 @@ impl RepoDB {
         }
     }
 
-    /// Lists all packages (name and version) available in this repository.
-    pub async fn list_packages(&self) -> Result<Vec<(String, String)>, sqlx::Error> {
-        let rows = sqlx::query("SELECT name, version FROM packages")
+    /// Получить URL исходников пакета
+    pub async fn get_source_url(&self, name: &str, version: &str) -> Result<String, RepoError> {
+        let row = sqlx::query("SELECT url FROM sources WHERE packagename = ? AND pkgver = ?")
+            .bind(name)
+            .bind(version)
+            .fetch_optional(&self.pool)
+            .await?;
+
+        match row {
+            Some(r) => Ok(r.get::<String, _>("url")),
+            None => Err(RepoError::NotFound(format!("{}-{} sources", name, version))),
+        }
+    }
+
+    /// Список всех пакетов в репозитории
+    pub async fn list_packages(&self) -> Result<Vec<(String, String, String)>, sqlx::Error> {
+        let rows = sqlx::query("SELECT packagename, pkgver, url FROM packages")
             .fetch_all(&self.pool)
             .await?;
 
         let packages = rows
             .into_iter()
-            .map(|r| (r.get::<String, _>("name"), r.get::<String, _>("version")))
+            .map(|r| {
+                (
+                    r.get::<String, _>("packagename"),
+                    r.get::<String, _>("pkgver"),
+                    r.get::<String, _>("url"),
+                )
+            })
             .collect();
 
         Ok(packages)
     }
 
-    /// Adds a package record to the repository (metadata only).
+    /// Список всех исходников в репозитории
+    pub async fn list_sources(&self) -> Result<Vec<(String, String, String)>, sqlx::Error> {
+        let rows = sqlx::query("SELECT packagename, pkgver, url FROM sources")
+            .fetch_all(&self.pool)
+            .await?;
+
+        let sources = rows
+            .into_iter()
+            .map(|r| {
+                (
+                    r.get::<String, _>("packagename"),
+                    r.get::<String, _>("pkgver"),
+                    r.get::<String, _>("url"),
+                )
+            })
+            .collect();
+
+        Ok(sources)
+    }
+
+    /// Поиск пакетов по имени
+    pub async fn search_packages(
+        &self,
+        query: &str,
+    ) -> Result<Vec<(String, String, String)>, sqlx::Error> {
+        let search_pattern = format!("%{}%", query);
+        let rows =
+            sqlx::query("SELECT packagename, pkgver, url FROM packages WHERE packagename LIKE ?")
+                .bind(&search_pattern)
+                .fetch_all(&self.pool)
+                .await?;
+
+        let packages = rows
+            .into_iter()
+            .map(|r| {
+                (
+                    r.get::<String, _>("packagename"),
+                    r.get::<String, _>("pkgver"),
+                    r.get::<String, _>("url"),
+                )
+            })
+            .collect();
+
+        Ok(packages)
+    }
+
+    /// Добавить пакет в репозиторий (совместимо с нашим uhprepo)
     pub async fn add_package(
         &self,
-        name: &str,
-        version: &str,
-        author: &str,
-        src: &str,
-        checksum: &str,
+        packagename: &str,
+        pkgver: &str,
+        url: &str,
     ) -> Result<(), sqlx::Error> {
-        sqlx::query(
-            "INSERT OR IGNORE INTO packages (name, version, author, src, checksum) VALUES (?, ?, ?, ?, ?)"
-        )
-        .bind(name)
-        .bind(version)
-        .bind(author)
-        .bind(src)
-        .bind(checksum)
-        .execute(&self.pool)
-        .await?;
+        sqlx::query("INSERT OR REPLACE INTO packages (packagename, pkgver, url) VALUES (?, ?, ?)")
+            .bind(packagename)
+            .bind(pkgver)
+            .bind(url)
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
-    /// Adds or replaces a download URL for a package version.
-    pub async fn add_url(&self, name: &str, version: &str, url: &str) -> Result<(), sqlx::Error> {
-        sqlx::query("INSERT OR REPLACE INTO urls (name, version, url) VALUES (?, ?, ?)")
-            .bind(name)
-            .bind(version)
+    /// Добавить исходники в репозиторий (совместимо с нашим uhprepo)
+    pub async fn add_source(
+        &self,
+        packagename: &str,
+        pkgver: &str,
+        url: &str,
+    ) -> Result<(), sqlx::Error> {
+        sqlx::query("INSERT OR REPLACE INTO sources (packagename, pkgver, url) VALUES (?, ?, ?)")
+            .bind(packagename)
+            .bind(pkgver)
             .bind(url)
             .execute(&self.pool)
             .await?;
@@ -168,18 +256,43 @@ impl RepoDB {
     }
 }
 
-/// Parses a `.ron` repositories configuration file.
-///
-/// The file should define a map of repository names to paths/URLs.
-/// Example (`repos.ron`):
-/// ```ron
-/// {
-///     "local": "file:///home/user/uhpm-repo",
-///     "main": "https://example.com/uhpm-repo"
-/// }
-/// ```
-pub fn parse_repos<P: AsRef<Path>>(path: P) -> Result<HashMap<String, String>, RepoError> {
+/// Парсит конфигурацию репозиториев из RON файла
+pub fn parse_repos<P: AsRef<Path>>(path: P) -> Result<RepoMap, RepoError> {
     let content = fs::read_to_string(path)?;
     let repos: HashMap<String, String> = from_str(&content).unwrap();
     Ok(repos)
+}
+
+pub async fn cache_repo(repos: RepoMap) -> Vec<PathBuf> {
+    let mut repo_dbs: Vec<PathBuf> = Vec::new();
+    for (name, url) in repos {
+        let pathstr = format!(
+            "{}/.uhpm/cache/repo/{}/repository.db",
+            home_dir().unwrap().to_str().unwrap(),
+            name,
+        );
+        let pathdb: PathBuf = PathBuf::from(pathstr);
+        fetcher::download_file_to_path_with_dirs(&format!("{}/repository.db", url), &pathdb).await;
+        repo_dbs.push(pathdb);
+    }
+    return repo_dbs;
+}
+
+/// Информация о репозитории из нашего info.json
+#[derive(Serialize, Deserialize)]
+pub struct RepositoryInfo {
+    pub name: String,
+    pub arch: String,
+    pub description: String,
+    pub package_count: usize,
+    pub source_count: usize,
+}
+
+impl RepositoryInfo {
+    pub fn load_from_path(repo_path: &Path) -> Result<Self, RepoError> {
+        let info_path = repo_path.join("info.json");
+        let content = fs::read_to_string(info_path)?;
+        let info: RepositoryInfo = serde_json::from_str(&content).unwrap();
+        Ok(info)
+    }
 }

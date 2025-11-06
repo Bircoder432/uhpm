@@ -2322,14 +2322,15 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.143"
+version = "1.0.145"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d401abef1d108fbd9cbaebc3e46611f4b1021f714a0597a71f41ee463f5f4a5a"
+checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
 dependencies = [
  "itoa",
  "memchr",
  "ryu",
  "serde",
+ "serde_core",
 ]
 
 [[package]]
@@ -3184,7 +3185,7 @@ checksum = "1dccffe3ce07af9386bfd29e80c0ab1a8205a2fc34e4bcd40364df902cfa8f3f"
 
 [[package]]
 name = "uhpm"
-version = "0.0.6"
+version = "0.0.9"
 dependencies = [
  "async-trait",
  "clap",
@@ -3208,6 +3209,7 @@ dependencies = [
  "rust-i18n",
  "semver",
  "serde",
+ "serde_json",
  "serde_yaml",
  "sqlx",
  "strfmt",

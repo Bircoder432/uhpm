@@ -80,6 +80,7 @@ pub async fn switch_version(
     pkg_name: &str,
     target_version: Version,
     db: &PackageDB,
+    direct: bool,
 ) -> Result<(), SwitchError> {
     // Get home directory safely
     let home_dir = dirs::home_dir().ok_or_else(|| {
@@ -175,7 +176,7 @@ pub async fn switch_version(
     }
 
     // Create symlinks for the new version
-    create_symlinks(&new_pkg_dir)?;
+    create_symlinks(&new_pkg_dir, direct)?;
 
     // Update database with the new current version
     db.set_current_version(pkg_name, &target_version.to_string())

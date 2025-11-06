@@ -71,7 +71,7 @@ impl From<crate::package::MetaParseError> for InstallError {
 /// 4. Moves package to permanent location
 /// 5. Creates symbolic links for package files
 /// 6. Updates package database
-pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), UhpmError> {
+pub async fn install(pkg_path: &Path, db: &PackageDB, direct: bool) -> Result<(), UhpmError> {
     info!("installer.install.starting", pkg_path.display());
 
     let unpacked = unpack(pkg_path)?;
@@ -124,7 +124,7 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), UhpmError> {
     match already_installed {
         None => {
             info!("installer.install.creating_symlinks");
-            installed_files = create_symlinks(&package_root)?;
+            installed_files = create_symlinks(&package_root, direct)?;
         }
         Some(_) => {
             info!("installer.install.updating_version");
@@ -164,7 +164,8 @@ pub async fn install(pkg_path: &Path, db: &PackageDB) -> Result<(), UhpmError> {
 /// 2. Creates parent directories for symlink targets
 /// 3. Removes existing files at target locations
 /// 4. Creates symbolic links from package files to target locations
-pub fn create_symlinks(package_root: &Path) -> Result<Vec<PathBuf>, std::io::Error> {
+
+pub fn create_symlinks(package_root: &Path, direct: bool) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut installed_files = Vec::new();
 
     let symlist_path = package_root.join("symlist");
@@ -194,8 +195,11 @@ pub fn create_symlinks(package_root: &Path) -> Result<Vec<PathBuf>, std::io::Err
                     fs::remove_file(&dst_abs)?;
                     debug!("installer.symlinks.removed_existing", dst_abs.display());
                 }
-
-                std::os::unix::fs::symlink(&src_abs, &dst_abs)?;
+                if direct {
+                    std::fs::copy(&src_abs, &dst_abs)?;
+                } else {
+                    std::os::unix::fs::symlink(&src_abs, &dst_abs)?;
+                }
                 debug!(
                     "installer.symlinks.created_link",
                     dst_abs.display(),
@@ -267,6 +271,7 @@ pub async fn install_at(
     pkg_path: &Path,
     db: &PackageDB,
     uhpm_root: &Path,
+    direct: bool,
 ) -> Result<(), crate::package::installer::InstallError> {
     info!("installer.install_at.starting", pkg_path.display());
 
@@ -319,7 +324,7 @@ pub async fn install_at(
     match already_installed {
         None => {
             info!("installer.install_at.creating_symlinks");
-            installed_files = create_symlinks(&package_root)?;
+            installed_files = create_symlinks(&package_root, direct)?;
         }
         Some(_) => {
             info!("installer.install_at.updating_version");
