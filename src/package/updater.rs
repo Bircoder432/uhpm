@@ -1,7 +1,4 @@
-//! # Package Updater
-//!
-//! This module provides functionality to check for and install newer versions
-//! of installed packages from configured repositories.
+//! Package update functionality
 
 use crate::db::PackageDB;
 use crate::error::UpdaterError;
@@ -11,57 +8,36 @@ use crate::{info, warn};
 use semver::Version;
 use std::path::Path;
 
-/// Errors that may occur during package update.
-
-/// Check for updates and return download URL if newer version exists
+/// Checks for package updates and returns download URL if newer version exists
 pub async fn check_for_update(
     pkg_name: &str,
     package_db: &PackageDB,
 ) -> Result<String, UpdaterError> {
-    // Step 1: check installed version
-    let installed_version = package_db.get_package_version(pkg_name).await?;
-    if installed_version.is_none() {
-        warn!("package.updater.package_not_installed", pkg_name);
-        return Err(UpdaterError::NotFound(pkg_name.to_string()));
-    }
+    let installed_version = package_db
+        .get_package_version(pkg_name)
+        .await?
+        .ok_or_else(|| UpdaterError::NotFound(pkg_name.to_string()))?;
 
-    let installed_version = installed_version.unwrap();
     info!(
         "package.updater.installed_version",
         pkg_name, &installed_version
     );
 
-    // Step 2: parse repository configuration
     let repos_path = dirs::home_dir().unwrap().join(".uhpm/repos.ron");
     let repos = parse_repos(&repos_path).unwrap();
 
     let mut latest_url = None;
     let mut latest_version: Option<Version> = None;
 
-    // Step 3: iterate through repositories
     for (repo_name, repo_url) in repos {
         info!("package.updater.checking_repo", &repo_name, &repo_url);
 
-        // Определяем путь к репозиторию
         let repo_path = if repo_url.starts_with("file://") {
             Path::new(repo_url.strip_prefix("file://").unwrap()).to_path_buf()
-        } else if repo_url.starts_with("http://") || repo_url.starts_with("https://") {
-            // Для HTTP репозиториев используем базовый URL
-            // База данных должна быть доступна по {repo_url}/repository.db
-            continue; // Пропускаем HTTP пока что, нужна дополнительная логика
         } else {
-            // Прямой путь
-            Path::new(&repo_url).to_path_buf()
+            continue; // Skip non-file repos
         };
 
-        let repo_db_path = repo_path.join("repository.db");
-
-        // if !repo_db_path.exists() {
-        //     warn!("package.updater.repo_db_not_found", &repo_name);
-        //     continue;
-        // }
-
-        // Используем наш новый метод для загрузки репозитория
         let repo_db = match RepoDB::from_repo_path(&repo_path).await {
             Ok(db) => db,
             Err(e) => {
@@ -78,47 +54,35 @@ pub async fn check_for_update(
             }
         };
 
-        // Ищем пакеты в репозитории
         for (name, ver_str, url) in pkg_list {
             if name == pkg_name {
-                match Version::parse(&ver_str) {
-                    Ok(ver) => {
-                        let inst_ver =
-                            Version::parse(&installed_version).unwrap_or(Version::new(0, 0, 0));
+                if let Ok(ver) = Version::parse(&ver_str) {
+                    let inst_ver =
+                        Version::parse(&installed_version).unwrap_or(Version::new(0, 0, 0));
 
-                        // Используем clone для сравнения без перемещения
-                        let current_latest = latest_version.as_ref();
-                        if current_latest.is_none() || &ver > current_latest.unwrap() {
-                            latest_version = Some(ver);
-                            latest_url = Some(url);
-                            info!(
-                                "package.updater.newer_version_found",
-                                pkg_name, &ver_str, &repo_name
-                            );
-                        }
-                    }
-                    Err(e) => {
-                        warn!("package.updater.version_parse_failed", &ver_str, e);
-                        continue;
+                    if latest_version.as_ref().map_or(true, |v| &ver > v) {
+                        latest_version = Some(ver);
+                        latest_url = Some(url);
+                        info!(
+                            "package.updater.newer_version_found",
+                            pkg_name, &ver_str, &repo_name
+                        );
                     }
                 }
             }
         }
     }
 
-    // Return URL if newer version found
     latest_url.ok_or_else(|| UpdaterError::NoNewVersion(pkg_name.to_string()))
 }
 
-/// Check for updates in all installed packages
+/// Checks for updates in all installed packages
 pub async fn check_all_updates(
     package_db: &PackageDB,
 ) -> Result<Vec<(String, String, String, String)>, UpdaterError> {
-    // Получаем список всех установленных пакетов
     let installed_packages = package_db.list_packages().await?;
     let mut updates = Vec::new();
 
-    // Парсим конфигурацию репозиториев
     let repos_path = dirs::home_dir().unwrap().join(".uhpm/repos.ron");
     let repos = parse_repos(&repos_path).unwrap();
 
@@ -130,7 +94,7 @@ pub async fn check_all_updates(
             let repo_path = if repo_url.starts_with("file://") {
                 Path::new(repo_url.strip_prefix("file://").unwrap()).to_path_buf()
             } else {
-                continue; // Пропускаем не-file репозитории для упрощения
+                continue;
             };
 
             let repo_db = match RepoDB::from_repo_path(&repo_path).await {
@@ -149,9 +113,7 @@ pub async fn check_all_updates(
                         let inst_ver =
                             Version::parse(&installed_version).unwrap_or(Version::new(0, 0, 0));
 
-                        // Используем as_ref для сравнения без перемещения
-                        let current_latest = latest_version.as_ref();
-                        if current_latest.is_none() || &ver > current_latest.unwrap() {
+                        if latest_version.as_ref().map_or(true, |v| &ver > v) {
                             latest_version = Some(ver);
                             latest_repo = repo_name.clone();
                         }
@@ -162,10 +124,10 @@ pub async fn check_all_updates(
 
         if let Some(latest_ver) = latest_version {
             updates.push((
-                pkg_name.clone(),
+                pkg_name,
                 installed_version,
                 latest_ver.to_string(),
-                latest_repo.clone(),
+                latest_repo,
             ));
         }
     }
@@ -173,7 +135,7 @@ pub async fn check_all_updates(
     Ok(updates)
 }
 
-/// Update package from local file
+/// Updates package from local file
 pub async fn update_from_file(
     pkg_path: &Path,
     package_db: &PackageDB,
@@ -181,10 +143,7 @@ pub async fn update_from_file(
 ) -> Result<(), UpdaterError> {
     info!("package.updater.updating_from_file", pkg_path.display());
 
-    // Convert Path to string URL for fetcher
     let url = format!("file://{}", pkg_path.display());
-
-    // Фетчер сам должен уметь извлекать имя пакета из метаданных
     fetcher::fetch_and_install_parallel(&[url], package_db, direct).await?;
 
     info!(
@@ -194,7 +153,7 @@ pub async fn update_from_file(
     Ok(())
 }
 
-/// Update a package to the latest version available in repositories.
+/// Updates package to latest version available in repositories
 pub async fn update_package(
     pkg_name: &str,
     package_db: &PackageDB,
@@ -202,22 +161,19 @@ pub async fn update_package(
 ) -> Result<(), UpdaterError> {
     info!("package.updater.starting_update", pkg_name);
 
-    // Check for updates
     let download_url = check_for_update(pkg_name, package_db).await?;
-
     info!(
         "package.updater.downloading_update",
         pkg_name, &download_url
     );
 
-    // Download and install
     fetcher::fetch_and_install_parallel(&[download_url], package_db, direct).await?;
     info!("package.updater.update_success", pkg_name);
 
     Ok(())
 }
 
-/// Update all packages that have newer versions available
+/// Updates all packages that have newer versions available
 pub async fn update_all_packages(package_db: &PackageDB, direct: bool) -> Result<(), UpdaterError> {
     let updates = check_all_updates(package_db).await?;
 

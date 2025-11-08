@@ -1,28 +1,4 @@
-//! # Package Installer Module
-//!
-//! This module provides functionality for installing UHPM packages from `.uhp` archive files.
-//! It handles package extraction, metadata parsing, symlink creation, and database registration.
-//!
-//! ## Main Components
-//!
-//! - [`InstallError`]: Enumeration of possible installation errors
-//! - [`install()`]: Main installation function for package archives
-//! - [`create_symlinks()`]: Creates symbolic links for package files
-//! - [`unpack()`]: Extracts package archives to temporary directory
-//!
-//! ## Installation Process
-//!
-//! 1. **Extraction**: Package archive is extracted to temporary directory
-//! 2. **Metadata Parsing**: Package metadata is read from `uhp.toml` file
-//! 3. **Version Check**: Verifies if package is already installed
-//! 4. **Directory Setup**: Creates package directory in UHPM home
-//! 5. **Symlink Creation**: Creates symbolic links based on `symlist`
-//! 6. **Database Registration**: Records package info in package database
-//!
-//! ## Error Handling
-//!
-//! Errors are categorized into I/O errors and metadata parsing errors,
-//! both wrapped in the [`InstallError`] enumeration.
+//! Package installation functionality
 
 use crate::db::PackageDB;
 use crate::error::UhpmError;
@@ -34,12 +10,10 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use tar::Archive;
 
-/// Errors that can occur during package installation
+/// Installation errors
 #[derive(Debug)]
 pub enum InstallError {
-    /// I/O error during file operations
     Io(std::io::Error),
-    /// Error parsing package metadata
     Meta(crate::package::MetaParseError),
 }
 
@@ -55,22 +29,7 @@ impl From<crate::package::MetaParseError> for InstallError {
     }
 }
 
-/// Installs a package from a `.uhp` archive file
-///
-/// # Arguments
-/// * `pkg_path` - Path to the package archive file
-/// * `db` - Reference to the package database
-///
-/// # Returns
-/// `Result<(), InstallError>` - Success or error result
-///
-/// # Process
-/// 1. Extracts package to temporary directory
-/// 2. Parses package metadata from `uhp.toml`
-/// 3. Checks if package is already installed
-/// 4. Moves package to permanent location
-/// 5. Creates symbolic links for package files
-/// 6. Updates package database
+/// Installs package from .uhp archive
 pub async fn install(pkg_path: &Path, db: &PackageDB, direct: bool) -> Result<(), UhpmError> {
     info!("installer.install.starting", pkg_path.display());
 
@@ -89,13 +48,12 @@ pub async fn install(pkg_path: &Path, db: &PackageDB, direct: bool) -> Result<()
     let pkg_name = package_meta.name();
     let version = package_meta.version();
 
-    let already_installed = db.is_installed(pkg_name).await.unwrap();
-    if let Some(installed_version) = &already_installed {
+    if let Some(installed_version) = db.is_installed(pkg_name).await? {
         info!(
             "installer.install.already_installed",
-            pkg_name, installed_version
+            pkg_name, &installed_version
         );
-        if installed_version == version {
+        if installed_version == *version {
             info!("installer.install.same_version_skipped");
             return Ok(());
         }
@@ -120,58 +78,41 @@ pub async fn install(pkg_path: &Path, db: &PackageDB, direct: bool) -> Result<()
     fs::rename(&unpacked, &package_root)?;
     debug!("installer.install.moved_package", package_root.display());
 
-    let mut installed_files = Vec::new();
-    match already_installed {
-        None => {
-            info!("installer.install.creating_symlinks");
-            installed_files = create_symlinks(&package_root, direct)?;
-        }
-        Some(_) => {
-            info!("installer.install.updating_version");
-        }
-    }
+    let installed_files = if db.is_installed(pkg_name).await?.is_none() {
+        info!("installer.install.creating_symlinks");
+        create_symlinks(&package_root, direct)?
+    } else {
+        info!("installer.install.updating_version");
+        Vec::new()
+    };
 
     let installed_files_str: Vec<String> = installed_files
         .iter()
         .map(|p| p.to_string_lossy().to_string())
         .collect();
+
     info!(
         "installer.install.adding_to_db",
         pkg_name,
         installed_files_str.len()
     );
     db.add_package_full(&package_meta, &installed_files_str)
-        .await
-        .unwrap();
-    db.set_current_version(&package_meta.name(), &package_meta.version().to_string())
-        .await
-        .unwrap();
+        .await?;
+    db.set_current_version(pkg_name, &version.to_string())
+        .await?;
 
     info!("installer.install.success", pkg_name);
     Ok(())
 }
 
-/// Creates symbolic links for package files based on symlist configuration
-///
-/// # Arguments
-/// * `package_root` - Path to the package directory
-///
-/// # Returns
-/// `Result<Vec<PathBuf>, std::io::Error>` - List of created symlink paths or error
-///
-/// # Process
-/// 1. Loads symlink configuration from `symlist`
-/// 2. Creates parent directories for symlink targets
-/// 3. Removes existing files at target locations
-/// 4. Creates symbolic links from package files to target locations
-
+/// Creates symlinks for package files
 pub fn create_symlinks(package_root: &Path, direct: bool) -> Result<Vec<PathBuf>, std::io::Error> {
     let mut installed_files = Vec::new();
-
     let symlist_path = package_root.join("symlist");
+
     debug!("installer.symlinks.loading", symlist_path.display());
 
-    match symlist::load_symlist(&symlist_path, &package_root) {
+    match symlist::load_symlist(&symlist_path, package_root) {
         Ok(symlinks) => {
             for (src_rel, dst_abs) in symlinks {
                 let src_abs = package_root.join(&src_rel);
@@ -195,11 +136,13 @@ pub fn create_symlinks(package_root: &Path, direct: bool) -> Result<Vec<PathBuf>
                     fs::remove_file(&dst_abs)?;
                     debug!("installer.symlinks.removed_existing", dst_abs.display());
                 }
+
                 if direct {
                     std::fs::copy(&src_abs, &dst_abs)?;
                 } else {
                     std::os::unix::fs::symlink(&src_abs, &dst_abs)?;
                 }
+
                 debug!(
                     "installer.symlinks.created_link",
                     dst_abs.display(),
@@ -208,28 +151,14 @@ pub fn create_symlinks(package_root: &Path, direct: bool) -> Result<Vec<PathBuf>
                 installed_files.push(dst_abs);
             }
         }
-        Err(e) => {
-            warn!("installer.symlinks.load_failed", e);
-        }
+        Err(e) => warn!("installer.symlinks.load_failed", e),
     }
 
     debug!("installer.symlinks.total_created", installed_files.len());
     Ok(installed_files)
 }
 
-/// Extracts a package archive to a temporary directory
-///
-/// # Arguments
-/// * `pkg_path` - Path to the package archive file
-///
-/// # Returns
-/// `Result<PathBuf, std::io::Error>` - Path to extracted directory or error
-///
-/// # Process
-/// 1. Validates file extension (.uhp)
-/// 2. Creates temporary extraction directory
-/// 3. Extracts tar.gz archive contents
-/// 4. Returns path to extracted directory
+/// Extracts package archive to temporary directory
 pub fn unpack(pkg_path: &Path) -> Result<PathBuf, std::io::Error> {
     if pkg_path.extension().and_then(|s| s.to_str()) != Some("uhp") {
         return Err(std::io::Error::new(
@@ -259,26 +188,27 @@ pub fn unpack(pkg_path: &Path) -> Result<PathBuf, std::io::Error> {
     );
 
     let tar_gz = fs::File::open(pkg_path)?;
-    let decompressor = flate2::read::GzDecoder::new(tar_gz);
-    let mut archive = tar::Archive::new(decompressor);
+    let decompressor = GzDecoder::new(tar_gz);
+    let mut archive = Archive::new(decompressor);
     archive.unpack(&unpack_dir)?;
 
     debug!("installer.unpack.done", unpack_dir.display());
     Ok(unpack_dir)
 }
 
+/// Installs package at custom UHPM root
 pub async fn install_at(
     pkg_path: &Path,
     db: &PackageDB,
     uhpm_root: &Path,
     direct: bool,
-) -> Result<(), crate::package::installer::InstallError> {
+) -> Result<(), InstallError> {
     info!("installer.install_at.starting", pkg_path.display());
 
     let unpacked = unpack_at(pkg_path, uhpm_root)?;
     debug!("installer.install_at.unpacked", unpacked.display());
 
-    let meta_path = unpacked.join("uhp.toml"); // Исправлено: uhp.ron -> uhp.toml
+    let meta_path = unpacked.join("uhp.toml");
     debug!("installer.install_at.reading_meta", meta_path.display());
     let package_meta: Package = crate::package::meta_parser(&meta_path)?;
     info!(
@@ -290,13 +220,12 @@ pub async fn install_at(
     let pkg_name = package_meta.name();
     let version = package_meta.version();
 
-    let already_installed = db.is_installed(pkg_name).await.unwrap();
-    if let Some(installed_version) = &already_installed {
+    if let Some(installed_version) = db.is_installed(pkg_name).await.unwrap() {
         info!(
             "installer.install_at.already_installed",
-            pkg_name, installed_version
+            pkg_name, &installed_version
         );
-        if installed_version == version {
+        if installed_version == *version {
             info!("installer.install_at.same_version_skipped");
             return Ok(());
         }
@@ -320,21 +249,19 @@ pub async fn install_at(
     fs::rename(&unpacked, &package_root)?;
     debug!("installer.install_at.moved_package", package_root.display());
 
-    let mut installed_files = Vec::new();
-    match already_installed {
-        None => {
-            info!("installer.install_at.creating_symlinks");
-            installed_files = create_symlinks(&package_root, direct)?;
-        }
-        Some(_) => {
-            info!("installer.install_at.updating_version");
-        }
-    }
+    let installed_files = if db.is_installed(pkg_name).await.unwrap().is_none() {
+        info!("installer.install_at.creating_symlinks");
+        create_symlinks(&package_root, direct)?
+    } else {
+        info!("installer.install_at.updating_version");
+        Vec::new()
+    };
 
     let installed_files_str: Vec<String> = installed_files
         .iter()
         .map(|p| p.to_string_lossy().to_string())
         .collect();
+
     info!(
         "installer.install_at.adding_to_db",
         pkg_name,
@@ -343,7 +270,7 @@ pub async fn install_at(
     db.add_package_full(&package_meta, &installed_files_str)
         .await
         .unwrap();
-    db.set_current_version(&package_meta.name(), &package_meta.version().to_string())
+    db.set_current_version(pkg_name, &version.to_string())
         .await
         .unwrap();
 
@@ -351,7 +278,7 @@ pub async fn install_at(
     Ok(())
 }
 
-/// Распаковка пакета в указанную директорию UHPM
+/// Extracts package to custom UHPM root
 pub fn unpack_at(pkg_path: &Path, uhpm_root: &Path) -> Result<PathBuf, std::io::Error> {
     if pkg_path.extension().and_then(|s| s.to_str()) != Some("uhp") {
         return Err(std::io::Error::new(

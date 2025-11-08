@@ -1,42 +1,4 @@
-//! # Package Database (`PackageDB`)
-//!
-//! This module provides an abstraction layer over an SQLite database used
-//! by **UHPM (Universal Home Package Manager)** to track installed packages,
-//! their versions, installed files, and dependencies.
-//!
-//! ## Responsibilities
-//! - Initialize and maintain the SQLite database schema.
-//! - Add, update, and remove package records.
-//! - Track installed files and dependencies.
-//! - Query package information, including versions and current package state.
-//!
-//! ## Tables
-//! - **`packages`**
-//!   - Stores package metadata (name, version, author, source, checksum).
-//!   - Marks which version is currently active via the `current` column.
-//!
-//! - **`installed_files`**
-//!   - Maps installed package files to their owning package and version.
-//!
-//! - **`dependencies`**
-//!   - Tracks package dependencies by name and version.
-//!
-//! ## Example
-//! ```rust,no_run
-//! use uhpm::db::PackageDB;
-//! use std::path::Path;
-//!
-//! # tokio_test::block_on(async {
-//! let db = PackageDB::new(Path::new("/tmp/uhpm.db"))
-//!     .unwrap()
-//!     .init()
-//!     .await
-//!     .unwrap();
-//!
-//! let packages = db.list_packages().await.unwrap();
-//! println!("Installed packages: {:?}", packages);
-//! # });
-//! ```
+//! Package database management
 
 use crate::package::{Package, Source};
 use crate::{debug, info};
@@ -46,25 +8,14 @@ use sqlx::SqlitePool;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-/// Represents the UHPM package database.
-///
-/// Internally, this is an SQLite database stored on disk,
-/// providing structured access to package metadata.
+/// Package database handler
 pub struct PackageDB {
     pool: SqlitePool,
     path: PathBuf,
 }
 
 impl PackageDB {
-    /// Creates a new `PackageDB` instance and ensures the database file exists.
-    ///
-    /// This does **not** establish a connection yet.
-    ///
-    /// # Arguments
-    /// - `path`: Path to the SQLite database file.
-    ///
-    /// # Errors
-    /// Returns [`std::io::Error`] if the file or directories cannot be created.
+    /// Creates new package database
     pub fn new(path: &Path) -> Result<Self, std::io::Error> {
         debug!("db.new.creating", path);
 
@@ -76,7 +27,6 @@ impl PackageDB {
             debug!("db.new.file_created", path);
         }
 
-        // Placeholder pool, replaced later in `init`
         Ok(PackageDB {
             pool: SqlitePool::connect_lazy("sqlite::memory:")
                 .expect("lazy pool must work for placeholder"),
@@ -84,10 +34,7 @@ impl PackageDB {
         })
     }
 
-    /// Establishes a real database connection and initializes tables if needed.
-    ///
-    /// # Errors
-    /// Returns [`sqlx::Error`] if the database connection or table creation fails.
+    /// Initializes database tables
     pub async fn init(mut self) -> Result<Self, sqlx::Error> {
         let path_str = self.path.to_str().expect("Invalid UTF-8 path");
         let db_url = format!("sqlite://{}", path_str);
@@ -142,12 +89,11 @@ impl PackageDB {
         Ok(self)
     }
 
-    /// Returns a reference to the connection pool.
     pub fn pool(&self) -> &SqlitePool {
         &self.pool
     }
 
-    /// Adds or replaces a package entry in the database (without files or dependencies).
+    /// Adds package to database
     pub async fn add_package(&self, pkg: &Package) -> Result<(), sqlx::Error> {
         debug!("db.add_package.adding", pkg.name(), pkg.version());
         sqlx::query(
@@ -164,7 +110,7 @@ impl PackageDB {
         Ok(())
     }
 
-    /// Adds a package with its dependencies and installed files.
+    /// Adds package with dependencies and installed files
     pub async fn add_package_full(
         &self,
         pkg: &Package,
@@ -179,7 +125,6 @@ impl PackageDB {
 
         self.add_package(pkg).await?;
 
-        // Dependencies
         for (dep_name, dep_version) in pkg.dependencies() {
             debug!(
                 "db.add_package_full.adding_dependency",
@@ -195,7 +140,6 @@ impl PackageDB {
             .await?;
         }
 
-        // Installed files
         for file_path in installed_files {
             debug!("db.add_package_full.adding_file", file_path);
             sqlx::query(
@@ -212,7 +156,7 @@ impl PackageDB {
         Ok(())
     }
 
-    /// Returns all files installed by a package (specific version).
+    /// Gets installed files for package version
     pub async fn get_installed_files(
         &self,
         pkg_name: &str,
@@ -240,7 +184,7 @@ impl PackageDB {
         Ok(files)
     }
 
-    /// Returns all files installed by all versions of a package.
+    /// Gets all installed files for package
     pub async fn get_all_installed_files(
         &self,
         pkg_name: &str,
@@ -259,7 +203,7 @@ impl PackageDB {
         Ok(files)
     }
 
-    /// Removes a specific version of a package and its associated data from the database.
+    /// Removes specific package version
     pub async fn remove_package_version(
         &self,
         pkg_name: &str,
@@ -284,7 +228,7 @@ impl PackageDB {
         Ok(())
     }
 
-    /// Removes all versions of a package and its associated data from the database.
+    /// Removes all package versions
     pub async fn remove_package(&self, pkg_name: &str) -> Result<(), sqlx::Error> {
         info!("db.remove_package.removing", pkg_name);
         sqlx::query("DELETE FROM installed_files WHERE package_name = ?")
@@ -303,7 +247,7 @@ impl PackageDB {
         Ok(())
     }
 
-    /// Returns the current version of a package, if installed.
+    /// Gets current package version
     pub async fn get_package_version(&self, pkg_name: &str) -> Result<Option<String>, sqlx::Error> {
         debug!("db.get_package_version.fetching", pkg_name);
         let row = sqlx::query("SELECT version FROM packages WHERE name = ? AND current = 1")
@@ -315,13 +259,13 @@ impl PackageDB {
         Ok(result)
     }
 
+    /// Gets latest package version
     pub async fn get_latest_package_version(
         &self,
         pkg_name: &str,
     ) -> Result<Option<Package>, sqlx::Error> {
         debug!("db.get_latest_package_version.fetching", pkg_name);
 
-        // Get all packages with the given name
         let rows =
             sqlx::query("SELECT name, version, author, src, checksum FROM packages WHERE name = ?")
                 .bind(pkg_name)
@@ -333,9 +277,7 @@ impl PackageDB {
             return Ok(None);
         }
 
-        // Parse packages and find the one with maximum version
         let mut packages = Vec::new();
-
         for row in rows {
             let version_str: String = row.get("version");
             if let Ok(version) = Version::parse(&version_str) {
@@ -353,7 +295,6 @@ impl PackageDB {
             return Ok(None);
         }
 
-        // Find the package with maximum version
         let (latest_row, latest_version) = packages
             .into_iter()
             .max_by(|(_, a), (_, b)| a.cmp(b))
@@ -370,14 +311,14 @@ impl PackageDB {
             latest_row.get::<String, _>("author"),
             Source::Raw(latest_row.get::<String, _>("src")),
             latest_row.get::<String, _>("checksum"),
-            Vec::new(), // Empty dependencies for now
+            Vec::new(),
         );
 
         debug!("db.get_latest_package_version.retrieved", &package);
         Ok(Some(package))
     }
 
-    /// Lists all installed packages.
+    /// Lists all installed packages
     pub async fn list_packages(&self) -> Result<Vec<(String, String, bool)>, sqlx::Error> {
         debug!("db.list_packages.listing");
         let rows = sqlx::query("SELECT name, version, current FROM packages")
@@ -396,7 +337,7 @@ impl PackageDB {
         Ok(packages)
     }
 
-    /// Checks if a package is installed and returns its latest version.
+    /// Checks if package is installed
     pub async fn is_installed(&self, name: &str) -> Result<Option<Version>, sqlx::Error> {
         debug!("db.is_installed.checking", name);
         let row = sqlx::query(
@@ -417,7 +358,7 @@ impl PackageDB {
         }
     }
 
-    /// Retrieves the current package metadata, including dependencies.
+    /// Gets current package with dependencies
     pub async fn get_current_package(
         &self,
         pkg_name: &str,
@@ -438,7 +379,6 @@ impl PackageDB {
             }
         };
 
-        // Dependencies
         let dep_rows = sqlx::query(
             "SELECT dependency_name, dependency_version FROM dependencies WHERE package_name = ?",
         )
@@ -469,7 +409,7 @@ impl PackageDB {
         Ok(Some(package))
     }
 
-    /// Sets a specific version of a package as the current version.
+    /// Sets package version as current
     pub async fn set_current_version(
         &self,
         pkg_name: &str,
@@ -491,7 +431,7 @@ impl PackageDB {
         Ok(())
     }
 
-    /// Retrieves a specific version of a package by name and version string.
+    /// Gets package by specific version
     pub async fn get_package_by_version(
         &self,
         pkg_name: &str,
@@ -516,7 +456,6 @@ impl PackageDB {
             }
         };
 
-        // Dependencies
         let dep_rows = sqlx::query(
             "SELECT dependency_name, dependency_version
              FROM dependencies

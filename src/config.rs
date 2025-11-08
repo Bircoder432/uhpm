@@ -1,59 +1,43 @@
-//! # Configuration Module
-//!
-//! This module defines the configuration structure for UHPM (Universal Home Package Manager).
-//! It handles loading, saving, and managing configuration settings including repository URLs
-//! and update sources.
+//! Configuration management
 
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-/// Errors that may occur while working with configuration.
+/// Configuration errors
 #[derive(Error, Debug)]
 pub enum ConfigError {
-    /// Filesystem error.
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
-
-    /// RON parsing error.
     #[error("RON parse error: {0}")]
     Ron(#[from] ron::error::SpannedError),
-
-    /// RON error.
     #[error("RON error: {0}")]
     RonError(#[from] ron::Error),
-
-    /// Configuration file not found.
     #[error("Configuration file not found: {0}")]
     NotFound(String),
 }
 
-/// Represents the UHPM configuration.
-///
-/// Contains settings for package management including update sources
-/// and repository configuration.
+/// UHPM configuration
 #[derive(Serialize, Deserialize, Debug, Default)]
 pub struct Config {
-    /// URL source for UHPM updates
     pub update_source: String,
 }
 
 impl Config {
-    /// Creates a new configuration with default values.
     pub fn new() -> Self {
         Self {
             update_source: String::new(),
         }
     }
 
-    /// Loads configuration from the default location (`~/.uhpm/config.ron`).
+    /// Loads configuration from default location
     pub fn load() -> Result<Self, ConfigError> {
         let config_path = Self::get_config_path()?;
         Self::load_from_path(&config_path)
     }
 
-    /// Loads configuration from a specific path.
+    /// Loads configuration from specific path
     pub fn load_from_path<P: AsRef<Path>>(path: P) -> Result<Self, ConfigError> {
         let path_ref = path.as_ref();
         if !path_ref.exists() {
@@ -67,17 +51,16 @@ impl Config {
         Ok(config)
     }
 
-    /// Saves configuration to the default location (`~/.uhpm/config.ron`).
+    /// Saves configuration to default location
     pub fn save(&self) -> Result<(), ConfigError> {
         let config_path = Self::get_config_path()?;
         self.save_to_path(&config_path)
     }
 
-    /// Saves configuration to a specific path.
+    /// Saves configuration to specific path
     pub fn save_to_path<P: AsRef<Path>>(&self, path: P) -> Result<(), ConfigError> {
         let path_ref = path.as_ref();
 
-        // Create directory if it doesn't exist
         if let Some(parent) = path_ref.parent() {
             fs::create_dir_all(parent)?;
         }
@@ -89,7 +72,7 @@ impl Config {
         Ok(())
     }
 
-    /// Returns the default configuration path (`~/.uhpm/config.ron`).
+    /// Returns default configuration path
     pub fn get_config_path() -> Result<PathBuf, ConfigError> {
         let home_dir = dirs::home_dir()
             .ok_or_else(|| ConfigError::NotFound("Home directory not found".to_string()))?;
@@ -101,7 +84,7 @@ impl Config {
         Ok(config_path)
     }
 
-    /// Creates a default configuration file if it doesn't exist.
+    /// Creates default configuration file if missing
     pub fn ensure_default() -> Result<(), ConfigError> {
         let config_path = Self::get_config_path()?;
 

@@ -1,4 +1,4 @@
-//! # Package Module
+//! Package metadata and structure
 
 use crate::error::MetaParseError;
 use semver::Version;
@@ -10,7 +10,7 @@ pub mod remover;
 pub mod switcher;
 pub mod updater;
 
-/// Represents the source of a package.
+/// Package source types
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", content = "value")]
 pub enum Source {
@@ -28,14 +28,14 @@ impl Source {
     }
 }
 
-/// Represents a dependency with name and version
+/// Package dependency
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Dependency {
     pub name: String,
     pub version: Version,
 }
 
-/// Represents a UHPM package with its metadata and dependencies.
+/// UHPM package metadata
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Package {
     name: String,
@@ -98,30 +98,22 @@ impl Package {
             .collect()
     }
 
+    /// Creates package from TOML file
     pub fn from_toml_file<P: AsRef<Path>>(path: P) -> Result<Self, Box<dyn std::error::Error>> {
         let data = fs::read_to_string(path)?;
         let pkg: Package = toml::from_str(&data)?;
         Ok(pkg)
     }
 
-    pub fn template() -> Self {
-        Package {
-            name: "my_package".to_string(),
-            author: "YourName".to_string(),
-            version: Version::parse("0.1.0").unwrap(),
-            src: Source::Raw("TODO".to_string()),
-            checksum: "TODO".to_string(),
-            dependencies: vec![],
-        }
-    }
-
-    pub fn save_to_toml(&self, path: &std::path::Path) -> Result<(), Box<dyn std::error::Error>> {
+    /// Saves package to TOML file
+    pub fn save_to_toml(&self, path: &Path) -> Result<(), Box<dyn std::error::Error>> {
         let toml_str = toml::to_string_pretty(self)?;
         std::fs::write(path, toml_str)?;
         Ok(())
     }
 }
 
+/// Parses package metadata from file
 pub fn meta_parser(meta_path: &Path) -> Result<Package, MetaParseError> {
     let data = fs::read_to_string(meta_path)?;
     let pkg: Package = toml::from_str(&data).map_err(|e| {
@@ -133,6 +125,7 @@ pub fn meta_parser(meta_path: &Path) -> Result<Package, MetaParseError> {
     Ok(pkg)
 }
 
+/// Gets package installation path
 pub fn get_pkg_path(pkg_name: &str, pkg_ver: Version) -> PathBuf {
     let packages_path: PathBuf = dirs::home_dir().unwrap().join(".uhpm").join("packages");
     packages_path.join(format!("{}-{}", pkg_name, pkg_ver.to_string()))
@@ -209,7 +202,6 @@ version = "1.0.0"
 
         original_pkg.save_to_toml(&toml_path).unwrap();
 
-        // Проверим, что сохранилось правильно
         let saved_content = fs::read_to_string(&toml_path).unwrap();
         println!("Saved TOML:\n{}", saved_content);
 
@@ -239,7 +231,6 @@ version = "1.0.0"
         let toml_str = toml::to_string_pretty(&pkg).unwrap();
         println!("Serialized package:\n{}", toml_str);
 
-        // Проверим, что можем десериализовать обратно
         let deserialized: Package = toml::from_str(&toml_str).unwrap();
         assert_eq!(pkg.name(), deserialized.name());
     }

@@ -1,11 +1,12 @@
 use crate::db::PackageDB;
 use crate::error::{ConfigError, UhpmError};
+use crate::fetcher;
 use crate::package::{installer, remover, switcher, updater};
 use crate::repo::{RepoDB, cache_repo, parse_repos};
-use crate::{fetcher, repo};
 use semver::Version;
 use std::path::{Path, PathBuf};
 
+/// Package management service
 pub struct PackageService {
     db: PackageDB,
 }
@@ -15,32 +16,32 @@ impl PackageService {
         Self { db }
     }
 
+    /// Installs package from file
     pub async fn install_from_file(&self, path: &Path, direct: bool) -> Result<(), UhpmError> {
         installer::install(path, &self.db, direct).await?;
         Ok(())
     }
 
+    /// Extracts package without installing
     pub async fn extract_package(&self, path: &Path) -> Result<(), UhpmError> {
         installer::unpack(path)?;
         Ok(())
     }
 
+    /// Installs package from repository
     pub async fn install_from_repo(
         &self,
         package_name: &str,
         version: Option<&str>,
         direct: bool,
     ) -> Result<(), UhpmError> {
-        let repos = cache_repo(self.load_repositories().await.unwrap()).await;
+        let repos = cache_repo(self.load_repositories().await?).await;
         let mut urls_to_download = Vec::new();
         let mut found = false;
 
         for repo_path in &repos {
             if !repo_path.exists() {
-                tracing::warn!(
-                    "Repository database not found: {}",
-                    repo_path.to_str().unwrap()
-                );
+                tracing::warn!("Repository database not found: {}", repo_path.display());
                 continue;
             }
 
@@ -49,13 +50,10 @@ impl PackageService {
 
             for (name, pkg_version, url) in packages {
                 if name == package_name {
-                    // Если версия не указана - берем первую найденную
-                    // Если версия указана - проверяем совпадение
                     if version.is_none() || version.unwrap() == pkg_version {
                         urls_to_download.push(url);
                         found = true;
 
-                        // Если версия указана явно, выходим после нахождения
                         if version.is_some() {
                             break;
                         }
@@ -63,7 +61,6 @@ impl PackageService {
                 }
             }
 
-            // Если нашли пакет и версия была указана явно, выходим из цикла по репозиториям
             if found && version.is_some() {
                 break;
             }
@@ -76,18 +73,18 @@ impl PackageService {
             )));
         }
 
-        // Добавим отладочную информацию
         tracing::info!("Found packages to download: {:?}", urls_to_download);
-
         fetcher::fetch_and_install_parallel(&urls_to_download, &self.db, direct).await?;
         Ok(())
     }
 
+    /// Removes package
     pub async fn remove_package(&self, package_name: &str, direct: bool) -> Result<(), UhpmError> {
         remover::remove(package_name, &self.db, direct).await?;
         Ok(())
     }
 
+    /// Removes specific package version
     pub async fn remove_package_version(
         &self,
         package_name: &str,
@@ -98,11 +95,13 @@ impl PackageService {
         Ok(())
     }
 
+    /// Updates package to latest version
     pub async fn update_package(&self, package_name: &str, direct: bool) -> Result<(), UhpmError> {
         updater::update_package(package_name, &self.db, direct).await?;
         Ok(())
     }
 
+    /// Switches package version
     pub async fn switch_version(
         &self,
         package_name: &str,
@@ -113,10 +112,12 @@ impl PackageService {
         Ok(())
     }
 
+    /// Lists installed packages
     pub async fn list_packages(&self) -> Result<Vec<(String, String, bool)>, UhpmError> {
         self.db.list_packages().await.map_err(UhpmError::from)
     }
 
+    /// Loads repository configuration
     async fn load_repositories(
         &self,
     ) -> Result<std::collections::HashMap<String, String>, UhpmError> {
@@ -131,9 +132,12 @@ impl PackageService {
         parse_repos(&repos_path).map_err(|e| UhpmError::Repository(e.into()))
     }
 
-    async fn cache_repos(repos: repo::RepoMap) -> Vec<PathBuf> {
-        repo::cache_repo(repos).await
+    /// Caches repositories locally
+    async fn cache_repos(repos: crate::repo::RepoMap) -> Vec<PathBuf> {
+        cache_repo(repos).await
     }
+
+    /// Gets repository database path
     fn get_repo_db_path(&self, repo_path: &str) -> Result<PathBuf, UhpmError> {
         let path = if let Some(stripped) = repo_path.strip_prefix("file://") {
             stripped

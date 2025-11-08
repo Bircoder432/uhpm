@@ -1,17 +1,4 @@
-//! # Package Version Switcher
-//!
-//! This module provides functionality to switch between different installed
-//! versions of a package. It updates symbolic links to point to the files
-//! of the desired version and updates the database record for the "current"
-//! version.
-//!
-//! ## Responsibilities
-//! - Remove symlinks of the currently active version.
-//! - Validate existence of the target version directory.
-//! - Create symlinks for the target version.
-//! - Update the package database with the new current version.
-//!
-//! Errors are unified under [`SwitchError`] for consistency.
+//! Package version switching functionality
 
 use crate::db::PackageDB;
 use crate::error::SwitchError;
@@ -19,70 +6,22 @@ use crate::package::installer::create_symlinks;
 use crate::{info, warn};
 use semver::Version;
 
-/// Errors that may occur when switching package versions.
-// #[derive(Debug)]
-// pub enum SwitchError {
-//     /// Filesystem or I/O error.
-//     Io(std::io::Error),
-//     /// Database error from `sqlx`.
-//     Db(sqlx::Error),
-//     /// Target package directory does not exist.
-//     MissingPackageDir(PathBuf),
-//     /// Error while parsing or processing `symlist.ron`.
-//     Symlist(crate::symlist::SymlistError),
-//     /// Requested package version not found in database.
-//     PackageNotFound(String, Version),
-// }
-
-// impl From<std::io::Error> for SwitchError {
-//     fn from(e: std::io::Error) -> Self {
-//         SwitchError::Io(e)
-//     }
-// }
-// impl From<sqlx::Error> for SwitchError {
-//     fn from(e: sqlx::Error) -> Self {
-//         SwitchError::Db(e)
-//     }
-// }
-// impl From<crate::symlist::SymlistError> for SwitchError {
-//     fn from(e: crate::symlist::SymlistError) -> Self {
-//         SwitchError::Symlist(e)
-//     }
-// }
-
-/// Switch the active version of a package.
+/// Switches the active version of a package
 ///
 /// # Arguments
-/// - `pkg_name`: The package name.
-/// - `target_version`: The version to switch to.
-/// - `db`: Reference to the [`PackageDB`] instance.
-///
-/// # Workflow
-/// 1. Remove symlinks of the current active version (if present).
-///    - Ensures only symlinks created by UHPM are removed.
-///    - Non-matching symlinks or regular files are skipped safely.
-/// 2. Verify that the target package directory exists.
-///    - If not, returns [`SwitchError::MissingPackageDir`].
-/// 3. Create symlinks for the target version using [`create_symlinks`].
-/// 4. Update the package database with the new current version.
+/// - `pkg_name`: package name
+/// - `target_version`: version to switch to
+/// - `db`: package database instance
+/// - `direct`: direct symlink mode
 ///
 /// # Errors
-/// Returns [`SwitchError`] if:
-/// - Filesystem operations (removing files, reading symlinks) fail.
-/// - Database operations fail.
-/// - `symlist.ron` is missing or invalid.
-/// - Target package directory does not exist.
-///
-/// # Logging
-/// - Logs removed or skipped symlinks from the old version.
-/// - Logs the switch to the new version when successful.
+/// Returns `SwitchError` on filesystem or database failures
 pub async fn switch_version(
     pkg_name: &str,
     target_version: Version,
     db: &PackageDB,
     direct: bool,
 ) -> Result<(), SwitchError> {
-    // Get home directory safely
     let home_dir = dirs::home_dir().ok_or_else(|| {
         SwitchError::Io(std::io::Error::new(
             std::io::ErrorKind::NotFound,
@@ -90,7 +29,7 @@ pub async fn switch_version(
         ))
     })?;
 
-    // Remove symlinks from the current version if available
+    // Remove old symlinks if current version exists
     if let Some(current_package) = db.get_current_package(pkg_name).await? {
         let current_version_str = current_package.version().to_string();
         let current_pkg_dir = home_dir
@@ -175,10 +114,10 @@ pub async fn switch_version(
         return Err(SwitchError::MissingPackageDir(new_pkg_dir));
     }
 
-    // Create symlinks for the new version
+    // Create symlinks for new version
     create_symlinks(&new_pkg_dir, direct)?;
 
-    // Update database with the new current version
+    // Update database
     db.set_current_version(pkg_name, &target_version.to_string())
         .await?;
 

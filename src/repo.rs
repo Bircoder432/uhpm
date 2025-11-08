@@ -1,27 +1,23 @@
-//! # Repository Module
-//!
-//! This module defines [`RepoDB`] and related utilities for managing package
-//! repositories in **UHPM (Universal Home Package Manager)**.
+//! Repository management
 
 use crate::error::RepoError;
 use crate::fetcher;
 use dirs;
-use reqwest::Url;
 use ron::from_str;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqlitePool};
 use std::collections::HashMap;
 use std::env::home_dir;
-use std::fs::{self, File};
-use std::io::copy;
+use std::fs;
 use std::path::{Path, PathBuf};
-use std::str::FromStr;
 
-/// SQLite-backed package repository database.
+/// Repository database handler
 pub struct RepoDB {
     pool: SqlitePool,
 }
+
 pub type RepoMap = HashMap<String, String>;
+
 #[derive(Serialize, Deserialize, Clone)]
 pub enum RepoTypes {
     Binary,
@@ -55,7 +51,7 @@ impl RepoDB {
         &self.pool
     }
 
-    /// Opens repository database from our repository structure
+    /// Opens repository from path
     pub async fn from_repo_path(repo_path: &Path) -> Result<Self, sqlx::Error> {
         let db_path = repo_path.join("repository.db");
         if !db_path.exists() {
@@ -69,7 +65,7 @@ impl RepoDB {
         Ok(RepoDB { pool })
     }
 
-    /// Opens (or creates) a new repository database at the given path
+    /// Creates new repository database
     pub async fn new(db_path: &Path) -> Result<Self, sqlx::Error> {
         if !db_path.exists() {
             if let Some(parent) = db_path.parent() {
@@ -85,9 +81,8 @@ impl RepoDB {
         Ok(db)
     }
 
-    /// Initializes tables for our repository structure
+    /// Initializes database tables
     async fn init_tables(&self) -> Result<(), sqlx::Error> {
-        // Таблица пакетов (как в нашем uhprepo)
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS packages (
@@ -102,7 +97,6 @@ impl RepoDB {
         .execute(&self.pool)
         .await?;
 
-        // Таблица исходников (как в нашем uhprepo)
         sqlx::query(
             r#"
             CREATE TABLE IF NOT EXISTS sources (
@@ -117,7 +111,6 @@ impl RepoDB {
         .execute(&self.pool)
         .await?;
 
-        // Индексы для быстрого поиска
         sqlx::query("CREATE INDEX IF NOT EXISTS idx_packages_name ON packages(packagename)")
             .execute(&self.pool)
             .await?;
@@ -129,7 +122,7 @@ impl RepoDB {
         Ok(())
     }
 
-    /// Получить URL пакета по имени и версии
+    /// Gets package download URL
     pub async fn get_package_url(&self, name: &str, version: &str) -> Result<String, RepoError> {
         let row = sqlx::query("SELECT url FROM packages WHERE packagename = ? AND pkgver = ?")
             .bind(name)
@@ -143,7 +136,7 @@ impl RepoDB {
         }
     }
 
-    /// Получить URL исходников пакета
+    /// Gets source download URL
     pub async fn get_source_url(&self, name: &str, version: &str) -> Result<String, RepoError> {
         let row = sqlx::query("SELECT url FROM sources WHERE packagename = ? AND pkgver = ?")
             .bind(name)
@@ -157,7 +150,7 @@ impl RepoDB {
         }
     }
 
-    /// Список всех пакетов в репозитории
+    /// Lists all packages
     pub async fn list_packages(&self) -> Result<Vec<(String, String, String)>, sqlx::Error> {
         let rows = sqlx::query("SELECT packagename, pkgver, url FROM packages")
             .fetch_all(&self.pool)
@@ -177,7 +170,7 @@ impl RepoDB {
         Ok(packages)
     }
 
-    /// Список всех исходников в репозитории
+    /// Lists all sources
     pub async fn list_sources(&self) -> Result<Vec<(String, String, String)>, sqlx::Error> {
         let rows = sqlx::query("SELECT packagename, pkgver, url FROM sources")
             .fetch_all(&self.pool)
@@ -197,7 +190,7 @@ impl RepoDB {
         Ok(sources)
     }
 
-    /// Поиск пакетов по имени
+    /// Searches packages by name
     pub async fn search_packages(
         &self,
         query: &str,
@@ -223,7 +216,7 @@ impl RepoDB {
         Ok(packages)
     }
 
-    /// Добавить пакет в репозиторий (совместимо с нашим uhprepo)
+    /// Adds package to repository
     pub async fn add_package(
         &self,
         packagename: &str,
@@ -239,7 +232,7 @@ impl RepoDB {
         Ok(())
     }
 
-    /// Добавить исходники в репозиторий (совместимо с нашим uhprepo)
+    /// Adds source to repository
     pub async fn add_source(
         &self,
         packagename: &str,
@@ -256,13 +249,14 @@ impl RepoDB {
     }
 }
 
-/// Парсит конфигурацию репозиториев из RON файла
+/// Parses repository configuration
 pub fn parse_repos<P: AsRef<Path>>(path: P) -> Result<RepoMap, RepoError> {
     let content = fs::read_to_string(path)?;
     let repos: HashMap<String, String> = from_str(&content).unwrap();
     Ok(repos)
 }
 
+/// Caches repositories locally
 pub async fn cache_repo(repos: RepoMap) -> Vec<PathBuf> {
     let mut repo_dbs: Vec<PathBuf> = Vec::new();
     for (name, url) in repos {
@@ -278,7 +272,7 @@ pub async fn cache_repo(repos: RepoMap) -> Vec<PathBuf> {
     return repo_dbs;
 }
 
-/// Информация о репозитории из нашего info.json
+/// Repository metadata
 #[derive(Serialize, Deserialize)]
 pub struct RepositoryInfo {
     pub name: String,

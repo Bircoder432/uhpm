@@ -1,36 +1,14 @@
-//! # Package Remover Module
-//!
-//! This module provides functionality for removing installed UHPM packages.
-//! It handles package file cleanup, symlink removal, and database record deletion.
-//!
-//! ## Main Components
-//!
-//! - [`DeleteError`]: Enumeration of possible removal errors
-//! - [`remove()`]: Main function for package removal
-//!
-//! ## Removal Process
-//!
-//! 1. **Database Check**: Verifies if package exists in database
-//! 2. **Directory Removal**: Deletes package installation directory
-//! 3. **File Cleanup**: Removes all installed files and symlinks
-//! 4. **Database Update**: Removes package record from database
-//!
-//! ## Error Handling
-//!
-//! Errors are categorized into I/O errors and database errors,
-//! both wrapped in the [`DeleteError`] enumeration.
+//! Package removal functionality
 
 use crate::db::PackageDB;
 use crate::error::UhpmError;
 use crate::package::switcher;
 use crate::{error, info, warn};
 
-/// Errors that can occur during package removal
+/// Errors during package removal
 #[derive(Debug)]
 pub enum DeleteError {
-    /// I/O error during file operations
     Io(std::io::Error),
-    /// Database error during record deletion
     Db(sqlx::Error),
 }
 
@@ -46,25 +24,7 @@ impl From<sqlx::Error> for DeleteError {
     }
 }
 
-/// Removes an installed package and all its associated files
-///
-/// # Arguments
-/// * `pkg_name` - Name of the package to remove
-/// * `db` - Reference to the package database
-///
-/// # Returns
-/// `Result<(), DeleteError>` - Success or error result
-///
-/// # Process
-/// 1. Checks if package exists in database
-/// 2. Removes package installation directory
-/// 3. Removes all installed files and symlinks
-/// 4. Deletes package record from database
-///
-/// # Notes
-/// - If package directory doesn't exist, removal continues with file cleanup
-/// - Non-existent files are skipped during cleanup
-/// - Database record is always removed if package exists in database
+/// Removes installed package and associated files
 pub async fn remove(pkg_name: &str, db: &PackageDB, direct: bool) -> Result<(), UhpmError> {
     let version = db.get_package_version(pkg_name).await?;
     if version.is_none() {
@@ -77,6 +37,7 @@ pub async fn remove(pkg_name: &str, db: &PackageDB, direct: bool) -> Result<(), 
     Ok(())
 }
 
+/// Removes specific package version
 pub async fn remove_by_version(
     pkg_name: &str,
     version: &str,
@@ -110,20 +71,14 @@ pub async fn remove_by_version(
     }
 
     db.remove_package(pkg_name).await?;
-    let lastpkg = db.get_latest_package_version(pkg_name).await?;
-    if lastpkg.is_some() {
-        match switcher::switch_version(pkg_name, lastpkg.unwrap().version().to_owned(), db, direct)
-            .await
-        {
-            Ok(_) => {
-                info!("remover.remove_by_version.succes_switch_after_remove");
-            }
-            Err(e) => {
-                error!("remover.remove_by_version.switch_after_remove_error", e);
-            }
+
+    if let Some(lastpkg) = db.get_latest_package_version(pkg_name).await? {
+        match switcher::switch_version(pkg_name, lastpkg.version().to_owned(), db, direct).await {
+            Ok(_) => info!("remover.remove_by_version.succes_switch_after_remove"),
+            Err(e) => error!("remover.remove_by_version.switch_after_remove_error", e),
         }
     }
-    info!("uhpm.remove.pkg_entry_removed", pkg_name);
 
+    info!("uhpm.remove.pkg_entry_removed", pkg_name);
     Ok(())
 }

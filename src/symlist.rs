@@ -1,50 +1,27 @@
-//! # Symlist
-//!
-//! This module handles **symbolic link lists** (`symlist`),
-//! which describe what files from an installed package should be symlinked
-//! into user/system paths.
-//!
-//! ## Example format (`symlist`)
-//! ```text
-//! /path/to/package/bin/my_binary $HOME/.local/bin/my_binary
-//! /path/to/package/share/applications/app.desktop $XDG_DATA_HOME/applications/app.desktop
-//! ```
-//!
-//! ## Supported variables
-//! - `$HOME` — user home directory
-//! - `$XDG_DATA_HOME` — user data directory (defaults to `~/.local/share`)
-//! - `$XDG_CONFIG_HOME` — user config directory (defaults to `~/.config`)
-//! - `$XDG_BIN_HOME` — user bin directory (defaults to `~/.local/bin`)
-//!
-//! These variables are automatically expanded in target paths.
+//! Symbolic link list management
 
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use thiserror::Error;
 
-/// Possible errors when working with symlists
+/// Symlist errors
 #[derive(Debug, Error)]
 pub enum SymlistError {
-    /// Input/output error
     #[error("I/O error: {0}")]
     Io(#[from] std::io::Error),
-
-    /// Symlist parsing error
     #[error("Symlist parse error: {0}")]
     Parse(String),
 }
 
-/// Entry in the symlink list
+/// Symlink entry
 #[derive(Debug)]
 pub struct SymlinkEntry {
-    /// Relative path inside the package
     pub source: String,
-    /// Target path (with variables)
     pub target: String,
 }
 
-/// Expands variables (`$HOME`, `$XDG_*`) in paths
+/// Expands variables in paths
 fn expand_vars(path: &str) -> PathBuf {
     let mut vars = HashMap::new();
 
@@ -75,11 +52,10 @@ fn expand_vars(path: &str) -> PathBuf {
     PathBuf::from(expanded)
 }
 
-/// Parses a single line from symlist file
+/// Parses symlist line
 fn parse_symlist_line(line: &str) -> Result<SymlinkEntry, SymlistError> {
     let line = line.trim();
 
-    // Skip empty lines and comments
     if line.is_empty() || line.starts_with('#') {
         return Err(SymlistError::Parse("Empty or comment line".to_string()));
     }
@@ -104,17 +80,7 @@ fn parse_symlist_line(line: &str) -> Result<SymlinkEntry, SymlistError> {
     Ok(SymlinkEntry { source, target })
 }
 
-/// Saves a symlist template (`symlist`)
-///
-/// Useful for package initialization or project bootstrapping.
-///
-/// # Example
-/// ```no_run
-/// use uhpm::symlist::save_template;
-/// use std::path::Path;
-///
-/// save_template(Path::new("symlist")).unwrap();
-/// ```
+/// Saves symlist template
 pub fn save_template(path: &Path) -> Result<(), Box<dyn std::error::Error>> {
     let symlist_template = r#"# Symlink list for package
 # Format: <source_path> <target_path_with_variables>
@@ -132,27 +98,7 @@ share/applications/my_app.desktop $XDG_DATA_HOME/applications/my_app.desktop
     Ok(())
 }
 
-/// Loads a symlink list from `symlist` file
-///
-/// - `path` — path to the symlist file
-/// - `package_root` — root directory of the package
-///
-/// Returns a vector of `(source_path, target_path)`.
-///
-/// # Errors
-/// - [`SymlistError::Io`] — if the file cannot be read
-/// - [`SymlistError::Parse`] — if the file has an invalid format
-///
-/// # Example
-/// ```no_run
-/// use uhpm::symlist::load_symlist;
-/// use std::path::Path;
-///
-/// let symlinks = load_symlist(Path::new("symlist"), Path::new("/tmp/pkg_root")).unwrap();
-/// for (src, dst) in symlinks {
-///     println!("{} -> {}", src.display(), dst.display());
-/// }
-/// ```
+/// Loads symlink list from file
 pub fn load_symlist(
     path: &Path,
     package_root: &Path,
@@ -164,13 +110,8 @@ pub fn load_symlist(
     for (line_num, line) in content.lines().enumerate() {
         match parse_symlist_line(line) {
             Ok(entry) => entries.push(entry),
-            Err(SymlistError::Parse(msg)) if msg.contains("Empty or comment") => {
-                // Skip empty lines and comments
-                continue;
-            }
-            Err(e) => {
-                return Err(SymlistError::Parse(format!("Line {}: {}", line_num + 1, e)));
-            }
+            Err(SymlistError::Parse(msg)) if msg.contains("Empty or comment") => continue,
+            Err(e) => return Err(SymlistError::Parse(format!("Line {}: {}", line_num + 1, e))),
         }
     }
 
@@ -188,7 +129,6 @@ pub fn load_symlist(
 mod tests {
     use super::*;
     use std::fs;
-    use std::path::PathBuf;
     use tempfile::tempdir;
 
     #[test]
@@ -216,7 +156,6 @@ mod tests {
         assert_eq!(entry.source, "/package/bin/foo");
         assert_eq!(entry.target, "$HOME/.local/bin/foo");
 
-        // Test with multiple spaces
         let line = "/package/bin/foo    $HOME/.local/bin/foo";
         let entry = parse_symlist_line(line).unwrap();
         assert_eq!(entry.source, "/package/bin/foo");
@@ -225,15 +164,12 @@ mod tests {
 
     #[test]
     fn test_parse_symlist_line_invalid() {
-        // Missing target
         let line = "/package/bin/foo";
         assert!(parse_symlist_line(line).is_err());
 
-        // Empty line
         let line = "";
         assert!(parse_symlist_line(line).is_err());
 
-        // Comment line
         let line = "# This is a comment";
         assert!(parse_symlist_line(line).is_err());
     }

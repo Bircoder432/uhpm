@@ -62,7 +62,7 @@ impl Cli {
             Commands::Install {
                 file,
                 package,
-                version, //TODO: сделать package@0.0.0 а не это говно
+                version,
                 extract,
                 direct,
             } => {
@@ -90,17 +90,11 @@ impl Cli {
                     error!("cli.remove.no_packages");
                 } else {
                     for pkg_name in packages {
-                        if pkg_name.contains('@') {
-                            let parts: Vec<&str> = pkg_name.split('@').collect();
-                            if parts.len() == 2 {
-                                let (pkg_name, pkg_version) = (parts[0], parts[1]);
-                                info!("cli.remove.parts", pkg_name, pkg_version);
-                                service
-                                    .remove_package_version(pkg_name, pkg_version, *direct)
-                                    .await?;
-                            } else {
-                                error!("cli.remove.invalid_format", pkg_name);
-                            }
+                        if let Some((name, version)) = pkg_name.split_once('@') {
+                            info!("cli.remove.parts", name, version);
+                            service
+                                .remove_package_version(name, version, *direct)
+                                .await?;
                         } else {
                             info!("cli.remove.removing", pkg_name);
                             service.remove_package(pkg_name, *direct).await?;
@@ -141,24 +135,17 @@ impl Cli {
             }
 
             Commands::Switch { target, direct } => {
-                let parts: Vec<&str> = target.split('@').collect();
-                if parts.len() != 2 {
+                if let Some((pkg_name, pkg_version)) = target.split_once('@') {
+                    match semver::Version::parse(pkg_version) {
+                        Ok(version) => {
+                            info!("cli.switch.switching", pkg_name, pkg_version);
+                            service.switch_version(pkg_name, version, *direct).await?;
+                            info!("cli.switch.success", pkg_name, pkg_version);
+                        }
+                        Err(e) => error!("cli.switch.invalid_version", pkg_version, e),
+                    }
+                } else {
                     error!("cli.switch.invalid_format", target);
-                    return Ok(());
-                }
-
-                let pkg_name = parts[0];
-                let pkg_version = parts[1];
-
-                match semver::Version::parse(pkg_version) {
-                    Ok(version) => {
-                        info!("cli.switch.switching", pkg_name, pkg_version);
-                        service.switch_version(pkg_name, version, *direct).await?;
-                        info!("cli.switch.success", pkg_name, pkg_version);
-                    }
-                    Err(e) => {
-                        error!("cli.switch.invalid_version", pkg_version, e);
-                    }
                 }
             }
 

@@ -1,16 +1,12 @@
-//! log.rs
-//!
-//! Localized logging with auto-detected system locale.
-//! Provides macros: info!(), warn!(), debug!(), error!(), lprintln!(), lprint!().
-//! Supports multiple arguments of any type and substitutes them in order.
+//! Localized logging macros
 
 use crate::locale::Locale;
 use once_cell::sync::Lazy;
 
-/// Global static logger
-pub static LOGGER: Lazy<Locale> = Lazy::new(|| Locale::initialize());
+/// Global locale instance
+pub static LOGGER: Lazy<Locale> = Lazy::new(Locale::initialize);
 
-/// Helper: replaces `{}` placeholders in template with provided arguments
+/// Formats template with ordered arguments
 pub fn format_ordered(template: &str, args: &[String]) -> String {
     let mut result = String::new();
     let mut parts = template.split("{}");
@@ -30,12 +26,12 @@ pub fn format_ordered(template: &str, args: &[String]) -> String {
     result
 }
 
-/// Internal helper to format any type with Debug
+/// Formats any debug value as string
 pub fn fmt_debug<T: std::fmt::Debug>(val: T) -> String {
     format!("{:?}", val)
 }
 
-// -------------------- MACROS -------------------- //
+// Logging macros
 
 #[macro_export]
 macro_rules! info {
