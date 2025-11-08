@@ -1,4 +1,8 @@
+# The repository has been archived; it fell victim to vibe-coding.
+
 # UHPM - Universal Home Package Manager 🚀
+
+
 
 **UHPM** is a universal package manager for home use, written in Rust. Future plans include support for application distribution similar to brew.
 
